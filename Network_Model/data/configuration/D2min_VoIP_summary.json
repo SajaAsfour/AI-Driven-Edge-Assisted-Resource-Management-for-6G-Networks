@@ -1,0 +1,1838 @@
+{
+  "meta": {
+    "rb_range": {
+      "start": 1,
+      "end": 8,
+      "step": 1
+    },
+    "ue_range": {
+      "start": 5,
+      "end": 80,
+      "step": 5
+    },
+    "metrics": [
+      "voIPFrameLoss",
+      "voIPReceivedThroughput",
+      "voIPPlayoutLoss"
+    ],
+    "statistics": [
+      "mean",
+      "std"
+    ],
+    "units": {
+      "voIPFrameLoss": "%",
+      "voIPReceivedThroughput": "bps",
+      "voIPPlayoutLoss": "%"
+    }
+  },
+  "data": {
+    "rb_1": {
+      "ue_5": {
+        "voIPFrameLoss": {
+          "mean": 0.14992242971325087,
+          "std": 0.5258639817581916
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1408.8727684369726,
+          "std": 261.1410066100844
+        },
+        "voIPPlayoutLoss": {
+          "mean": 5.983194640436341,
+          "std": 3.1475494959018633
+        }
+      },
+      "ue_10": {
+        "voIPFrameLoss": {
+          "mean": 0.9715979627329157,
+          "std": 2.4295647157845925
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1361.2118316359,
+          "std": 240.25620050237964
+        },
+        "voIPPlayoutLoss": {
+          "mean": 10.093085193114822,
+          "std": 3.9370786169295293
+        }
+      },
+      "ue_15": {
+        "voIPFrameLoss": {
+          "mean": 1.2721835962481316,
+          "std": 2.7654302946640166
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1355.1588907714495,
+          "std": 239.57134199492654
+        },
+        "voIPPlayoutLoss": {
+          "mean": 12.666903793744083,
+          "std": 5.032800033583255
+        }
+      },
+      "ue_20": {
+        "voIPFrameLoss": {
+          "mean": 1.691637152663137,
+          "std": 3.0922149181490264
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1323.9213375734694,
+          "std": 238.88732368006154
+        },
+        "voIPPlayoutLoss": {
+          "mean": 17.07121204556921,
+          "std": 6.236274397249399
+        }
+      },
+      "ue_25": {
+        "voIPFrameLoss": {
+          "mean": 2.384861598284957,
+          "std": 5.649694956299365
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1291.9697112198096,
+          "std": 261.7060958782412
+        },
+        "voIPPlayoutLoss": {
+          "mean": 22.114330175796592,
+          "std": 7.412543675424935
+        }
+      },
+      "ue_30": {
+        "voIPFrameLoss": {
+          "mean": 3.1498193296157337,
+          "std": 6.254153602182158
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1211.4712510377485,
+          "std": 285.2335462153678
+        },
+        "voIPPlayoutLoss": {
+          "mean": 26.580358810765954,
+          "std": 8.63451358879145
+        }
+      },
+      "ue_35": {
+        "voIPFrameLoss": {
+          "mean": 4.125225145918303,
+          "std": 7.627173608284496
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1090.1342059889882,
+          "std": 309.7651661149477
+        },
+        "voIPPlayoutLoss": {
+          "mean": 28.64511524877706,
+          "std": 9.790374851507499
+        }
+      },
+      "ue_40": {
+        "voIPFrameLoss": {
+          "mean": 4.568385876016326,
+          "std": 8.951361813402466
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1031.725422315889,
+          "std": 332.01612313584127
+        },
+        "voIPPlayoutLoss": {
+          "mean": 31.375475670242835,
+          "std": 11.601104529768133
+        }
+      },
+      "ue_45": {
+        "voIPFrameLoss": {
+          "mean": 5.219347372376287,
+          "std": 10.005783477681005
+        },
+        "voIPReceivedThroughput": {
+          "mean": 970.3522189643949,
+          "std": 346.1991921519002
+        },
+        "voIPPlayoutLoss": {
+          "mean": 32.74017391490453,
+          "std": 13.578595259680363
+        }
+      },
+      "ue_50": {
+        "voIPFrameLoss": {
+          "mean": 5.234833100781561,
+          "std": 10.208972242666256
+        },
+        "voIPReceivedThroughput": {
+          "mean": 936.0307352538636,
+          "std": 351.2305872803968
+        },
+        "voIPPlayoutLoss": {
+          "mean": 33.8864620492296,
+          "std": 13.861910777442557
+        }
+      },
+      "ue_55": {
+        "voIPFrameLoss": {
+          "mean": 5.392199068095749,
+          "std": 10.818020932682037
+        },
+        "voIPReceivedThroughput": {
+          "mean": 910.303980717114,
+          "std": 345.29535298635915
+        },
+        "voIPPlayoutLoss": {
+          "mean": 34.02794666070285,
+          "std": 14.616993754784582
+        }
+      },
+      "ue_60": {
+        "voIPFrameLoss": {
+          "mean": 5.543004723409991,
+          "std": 11.202064864654693
+        },
+        "voIPReceivedThroughput": {
+          "mean": 885.2258668013152,
+          "std": 367.8978611620026
+        },
+        "voIPPlayoutLoss": {
+          "mean": 34.40879957436496,
+          "std": 15.881962524732879
+        }
+      },
+      "ue_65": {
+        "voIPFrameLoss": {
+          "mean": 5.92516532201158,
+          "std": 11.974517137327123
+        },
+        "voIPReceivedThroughput": {
+          "mean": 845.9407791521218,
+          "std": 378.0769880841287
+        },
+        "voIPPlayoutLoss": {
+          "mean": 33.64085843379179,
+          "std": 16.191205497352097
+        }
+      },
+      "ue_70": {
+        "voIPFrameLoss": {
+          "mean": 5.567019902001745,
+          "std": 12.000549526292845
+        },
+        "voIPReceivedThroughput": {
+          "mean": 827.6886279409588,
+          "std": 384.78364035541017
+        },
+        "voIPPlayoutLoss": {
+          "mean": 34.99113487929684,
+          "std": 17.313814489681064
+        }
+      },
+      "ue_75": {
+        "voIPFrameLoss": {
+          "mean": 5.20622722779358,
+          "std": 11.267118058131832
+        },
+        "voIPReceivedThroughput": {
+          "mean": 798.7101178680639,
+          "std": 384.91671561400426
+        },
+        "voIPPlayoutLoss": {
+          "mean": 35.318140488612,
+          "std": 17.533415980438114
+        }
+      },
+      "ue_80": {
+        "voIPFrameLoss": {
+          "mean": 5.958754901695562,
+          "std": 12.613473002128114
+        },
+        "voIPReceivedThroughput": {
+          "mean": 776.1311564404406,
+          "std": 384.0010533317615
+        },
+        "voIPPlayoutLoss": {
+          "mean": 35.315917832064066,
+          "std": 17.292632161040554
+        }
+      }
+    },
+    "rb_2": {
+      "ue_5": {
+        "voIPFrameLoss": {
+          "mean": 0.0,
+          "std": 0.0
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1390.531673188888,
+          "std": 231.97701967435847
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.161982890693019,
+          "std": 1.443326854696616
+        }
+      },
+      "ue_10": {
+        "voIPFrameLoss": {
+          "mean": 0.006648475307874043,
+          "std": 0.039810752674856016
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1392.2404402274003,
+          "std": 235.00683778568674
+        },
+        "voIPPlayoutLoss": {
+          "mean": 3.052149364745044,
+          "std": 2.14357645811404
+        }
+      },
+      "ue_15": {
+        "voIPFrameLoss": {
+          "mean": 0.1320304424082504,
+          "std": 0.6939271921241833
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1359.2962271354347,
+          "std": 240.864935618847
+        },
+        "voIPPlayoutLoss": {
+          "mean": 5.421314030417808,
+          "std": 2.8395196071722926
+        }
+      },
+      "ue_20": {
+        "voIPFrameLoss": {
+          "mean": 0.17743907152293711,
+          "std": 0.7369404771115284
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1380.0650241451774,
+          "std": 247.6090016272331
+        },
+        "voIPPlayoutLoss": {
+          "mean": 7.977240542087759,
+          "std": 3.454145649198561
+        }
+      },
+      "ue_25": {
+        "voIPFrameLoss": {
+          "mean": 0.26065533926484713,
+          "std": 0.898821944169928
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1384.1516913173048,
+          "std": 238.53024426137094
+        },
+        "voIPPlayoutLoss": {
+          "mean": 10.199392782630245,
+          "std": 4.223158582365083
+        }
+      },
+      "ue_30": {
+        "voIPFrameLoss": {
+          "mean": 0.37605767060603534,
+          "std": 1.2315097210602954
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1353.3261180109587,
+          "std": 239.452979706662
+        },
+        "voIPPlayoutLoss": {
+          "mean": 12.977919591263959,
+          "std": 4.78592659677882
+        }
+      },
+      "ue_35": {
+        "voIPFrameLoss": {
+          "mean": 0.4221558528682979,
+          "std": 1.3655706785562869
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1359.7664776700772,
+          "std": 235.87101823796112
+        },
+        "voIPPlayoutLoss": {
+          "mean": 15.335972436958608,
+          "std": 5.412715406450344
+        }
+      },
+      "ue_40": {
+        "voIPFrameLoss": {
+          "mean": 0.6798473992855983,
+          "std": 2.139191535131655
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1347.0633818171118,
+          "std": 235.0456616421616
+        },
+        "voIPPlayoutLoss": {
+          "mean": 17.88700887216569,
+          "std": 6.3308560363570034
+        }
+      },
+      "ue_45": {
+        "voIPFrameLoss": {
+          "mean": 0.8564948851109333,
+          "std": 2.5442465291537126
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1330.2339330020307,
+          "std": 250.10063101013094
+        },
+        "voIPPlayoutLoss": {
+          "mean": 20.063756762002175,
+          "std": 6.9237477601104755
+        }
+      },
+      "ue_50": {
+        "voIPFrameLoss": {
+          "mean": 1.3264886988906788,
+          "std": 3.6581706917093357
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1300.770292773045,
+          "std": 250.922503089361
+        },
+        "voIPPlayoutLoss": {
+          "mean": 22.136039286749003,
+          "std": 7.305187174375825
+        }
+      },
+      "ue_55": {
+        "voIPFrameLoss": {
+          "mean": 1.3239369985486746,
+          "std": 3.7094222666463885
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1275.358781022838,
+          "std": 251.8179362390247
+        },
+        "voIPPlayoutLoss": {
+          "mean": 24.7088906738284,
+          "std": 8.053475307774658
+        }
+      },
+      "ue_60": {
+        "voIPFrameLoss": {
+          "mean": 1.6205361494338857,
+          "std": 4.313152678017121
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1241.0982003945242,
+          "std": 274.40547112565457
+        },
+        "voIPPlayoutLoss": {
+          "mean": 26.598546629486552,
+          "std": 8.891076856901046
+        }
+      },
+      "ue_65": {
+        "voIPFrameLoss": {
+          "mean": 1.933432794979815,
+          "std": 4.902458488967961
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1199.437630220268,
+          "std": 279.8092271013
+        },
+        "voIPPlayoutLoss": {
+          "mean": 28.071561234292137,
+          "std": 10.059457638304451
+        }
+      },
+      "ue_70": {
+        "voIPFrameLoss": {
+          "mean": 2.0091117689826756,
+          "std": 5.425212163462128
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1152.342753587963,
+          "std": 292.7337330235754
+        },
+        "voIPPlayoutLoss": {
+          "mean": 29.237774649130515,
+          "std": 10.814379656551933
+        }
+      },
+      "ue_75": {
+        "voIPFrameLoss": {
+          "mean": 2.2528674234995707,
+          "std": 6.08710771482376
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1106.4757973703006,
+          "std": 306.2672208179156
+        },
+        "voIPPlayoutLoss": {
+          "mean": 29.841802045778,
+          "std": 11.781764943361528
+        }
+      },
+      "ue_80": {
+        "voIPFrameLoss": {
+          "mean": 2.365645028520465,
+          "std": 6.216865775000431
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1063.062446440427,
+          "std": 307.72749458065033
+        },
+        "voIPPlayoutLoss": {
+          "mean": 31.42446635272611,
+          "std": 12.649750566433976
+        }
+      }
+    },
+    "rb_3": {
+      "ue_5": {
+        "voIPFrameLoss": {
+          "mean": 0.0,
+          "std": 0.0
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1340.4950655818186,
+          "std": 240.4235914224473
+        },
+        "voIPPlayoutLoss": {
+          "mean": 0.6542588186309101,
+          "std": 1.0828309686566715
+        }
+      },
+      "ue_10": {
+        "voIPFrameLoss": {
+          "mean": 0.009914953292656174,
+          "std": 0.09400562407120017
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1368.8937090720337,
+          "std": 242.8296196420328
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.3387451823253436,
+          "std": 1.8084367242690775
+        }
+      },
+      "ue_15": {
+        "voIPFrameLoss": {
+          "mean": 0.014078261829011392,
+          "std": 0.12036641449682435
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1353.4985178072775,
+          "std": 242.28915280729652
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.0702110023904456,
+          "std": 1.9831102938250496
+        }
+      },
+      "ue_20": {
+        "voIPFrameLoss": {
+          "mean": 0.03935536436110731,
+          "std": 0.19914009774352634
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1351.3115987585159,
+          "std": 232.19637313955158
+        },
+        "voIPPlayoutLoss": {
+          "mean": 3.4382675663057096,
+          "std": 2.654255777848505
+        }
+      },
+      "ue_25": {
+        "voIPFrameLoss": {
+          "mean": 0.05907812644365978,
+          "std": 0.378218860859044
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1383.1711917002451,
+          "std": 241.18204243989973
+        },
+        "voIPPlayoutLoss": {
+          "mean": 4.450668275526776,
+          "std": 2.5876562348134335
+        }
+      },
+      "ue_30": {
+        "voIPFrameLoss": {
+          "mean": 0.10152304513703411,
+          "std": 0.5994359475970985
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1367.9317973398404,
+          "std": 234.40502558534763
+        },
+        "voIPPlayoutLoss": {
+          "mean": 5.796761507106122,
+          "std": 2.8690238915899666
+        }
+      },
+      "ue_35": {
+        "voIPFrameLoss": {
+          "mean": 0.14126786461445556,
+          "std": 0.6915697737157391
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1369.6621460710212,
+          "std": 227.73714920284561
+        },
+        "voIPPlayoutLoss": {
+          "mean": 7.220692012337512,
+          "std": 3.417869248301914
+        }
+      },
+      "ue_40": {
+        "voIPFrameLoss": {
+          "mean": 0.20343847802840473,
+          "std": 0.7923426423674591
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1370.7733205763627,
+          "std": 230.74503059965156
+        },
+        "voIPPlayoutLoss": {
+          "mean": 9.35153103644448,
+          "std": 3.8044494565971156
+        }
+      },
+      "ue_45": {
+        "voIPFrameLoss": {
+          "mean": 0.2774517400030571,
+          "std": 1.0188259009001943
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1372.2325198186857,
+          "std": 233.6111707514685
+        },
+        "voIPPlayoutLoss": {
+          "mean": 11.40377762735418,
+          "std": 4.611321535970103
+        }
+      },
+      "ue_50": {
+        "voIPFrameLoss": {
+          "mean": 0.40033265515982547,
+          "std": 1.496047934832405
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1364.5655871135498,
+          "std": 237.3531963461935
+        },
+        "voIPPlayoutLoss": {
+          "mean": 13.458375765501678,
+          "std": 5.194097484410265
+        }
+      },
+      "ue_55": {
+        "voIPFrameLoss": {
+          "mean": 0.5161391169493164,
+          "std": 1.859153733548777
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1352.8039181485003,
+          "std": 243.94208562765172
+        },
+        "voIPPlayoutLoss": {
+          "mean": 15.255951348931921,
+          "std": 5.495327522999229
+        }
+      },
+      "ue_60": {
+        "voIPFrameLoss": {
+          "mean": 0.4740637689263064,
+          "std": 1.7054071813296503
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1363.5028552650147,
+          "std": 231.72154633476555
+        },
+        "voIPPlayoutLoss": {
+          "mean": 16.46283523750943,
+          "std": 5.597653495342127
+        }
+      },
+      "ue_65": {
+        "voIPFrameLoss": {
+          "mean": 0.6494900834548498,
+          "std": 2.0045528784219435
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1347.5305314739571,
+          "std": 236.62257074195807
+        },
+        "voIPPlayoutLoss": {
+          "mean": 18.25632787482014,
+          "std": 6.337889574307109
+        }
+      },
+      "ue_70": {
+        "voIPFrameLoss": {
+          "mean": 0.8048535213228758,
+          "std": 2.596813770479464
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1333.078681785685,
+          "std": 234.4392493832295
+        },
+        "voIPPlayoutLoss": {
+          "mean": 19.710024291169674,
+          "std": 6.530001471431694
+        }
+      },
+      "ue_75": {
+        "voIPFrameLoss": {
+          "mean": 0.8176174894142891,
+          "std": 2.5718449275694706
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1323.5987499687558,
+          "std": 243.02671191944705
+        },
+        "voIPPlayoutLoss": {
+          "mean": 20.938629945285825,
+          "std": 6.7921980796688475
+        }
+      },
+      "ue_80": {
+        "voIPFrameLoss": {
+          "mean": 1.0018841481623262,
+          "std": 3.0252582565446553
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1305.4520687610732,
+          "std": 244.66883554391012
+        },
+        "voIPPlayoutLoss": {
+          "mean": 23.121092809042025,
+          "std": 7.402911327933243
+        }
+      }
+    },
+    "rb_4": {
+      "ue_5": {
+        "voIPFrameLoss": {
+          "mean": 0.0,
+          "std": 0.0
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1406.575188859524,
+          "std": 232.69637446611998
+        },
+        "voIPPlayoutLoss": {
+          "mean": 0.6095547642176642,
+          "std": 1.083748477540292
+        }
+      },
+      "ue_10": {
+        "voIPFrameLoss": {
+          "mean": 0.0006825472663982173,
+          "std": 0.010351341811551111
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1380.6056754798892,
+          "std": 232.5002774629143
+        },
+        "voIPPlayoutLoss": {
+          "mean": 0.9409631793573139,
+          "std": 1.5220961377990874
+        }
+      },
+      "ue_15": {
+        "voIPFrameLoss": {
+          "mean": 0.009010646996112376,
+          "std": 0.08299363234749023
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1366.8572856885685,
+          "std": 235.8443604998587
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.2933121449929292,
+          "std": 1.7942884353746569
+        }
+      },
+      "ue_20": {
+        "voIPFrameLoss": {
+          "mean": 0.027891241941906158,
+          "std": 0.23363987020386798
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1363.7127516271896,
+          "std": 245.347011072028
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.0587387185130366,
+          "std": 2.1822701767608126
+        }
+      },
+      "ue_25": {
+        "voIPFrameLoss": {
+          "mean": 0.042466569320800625,
+          "std": 0.27843605665211457
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1371.5978559598802,
+          "std": 248.482515262527
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.3455295100246243,
+          "std": 1.9729035181284695
+        }
+      },
+      "ue_30": {
+        "voIPFrameLoss": {
+          "mean": 0.058734744664707655,
+          "std": 0.4641998332397346
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1373.7938397282455,
+          "std": 233.50794723209276
+        },
+        "voIPPlayoutLoss": {
+          "mean": 3.041434945744769,
+          "std": 2.354851998381601
+        }
+      },
+      "ue_35": {
+        "voIPFrameLoss": {
+          "mean": 0.07362806192563096,
+          "std": 0.5108319634252346
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1365.0040681463813,
+          "std": 244.11145471235307
+        },
+        "voIPPlayoutLoss": {
+          "mean": 3.813704895376703,
+          "std": 2.3212318821848172
+        }
+      },
+      "ue_40": {
+        "voIPFrameLoss": {
+          "mean": 0.08495370746480566,
+          "std": 0.5624074477470524
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1375.7968100857577,
+          "std": 242.36673369146592
+        },
+        "voIPPlayoutLoss": {
+          "mean": 4.760806679249871,
+          "std": 2.5996916221661013
+        }
+      },
+      "ue_45": {
+        "voIPFrameLoss": {
+          "mean": 0.09162196264893366,
+          "std": 0.5154395227110343
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1358.6989587759765,
+          "std": 234.96055594006202
+        },
+        "voIPPlayoutLoss": {
+          "mean": 6.090011691540632,
+          "std": 3.0075153797383796
+        }
+      },
+      "ue_50": {
+        "voIPFrameLoss": {
+          "mean": 0.16520464315790484,
+          "std": 0.9606543836158778
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1365.064672860868,
+          "std": 245.78672802513603
+        },
+        "voIPPlayoutLoss": {
+          "mean": 7.62475990777161,
+          "std": 3.3303231737093384
+        }
+      },
+      "ue_55": {
+        "voIPFrameLoss": {
+          "mean": 0.18821807464493315,
+          "std": 0.7932781251961862
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1373.7194221535726,
+          "std": 240.9328134708251
+        },
+        "voIPPlayoutLoss": {
+          "mean": 9.149463877698421,
+          "std": 3.8205774223972777
+        }
+      },
+      "ue_60": {
+        "voIPFrameLoss": {
+          "mean": 0.2360340247352461,
+          "std": 0.9798518013821674
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1367.7079012685945,
+          "std": 238.220333305367
+        },
+        "voIPPlayoutLoss": {
+          "mean": 10.907168513962763,
+          "std": 4.133445383588816
+        }
+      },
+      "ue_65": {
+        "voIPFrameLoss": {
+          "mean": 0.23533858978880473,
+          "std": 0.9607764131765675
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1362.2204379593534,
+          "std": 239.61509009888985
+        },
+        "voIPPlayoutLoss": {
+          "mean": 12.520127040948486,
+          "std": 4.684436566616128
+        }
+      },
+      "ue_70": {
+        "voIPFrameLoss": {
+          "mean": 0.36645631435201187,
+          "std": 1.4383683701999859
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1359.8899983405488,
+          "std": 238.3836501231024
+        },
+        "voIPPlayoutLoss": {
+          "mean": 13.913706799627581,
+          "std": 5.222037119242707
+        }
+      },
+      "ue_75": {
+        "voIPFrameLoss": {
+          "mean": 0.4687378423049991,
+          "std": 1.7447496339193704
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1359.3665548028857,
+          "std": 239.7995122005842
+        },
+        "voIPPlayoutLoss": {
+          "mean": 15.085327622793043,
+          "std": 5.5578869085338445
+        }
+      },
+      "ue_80": {
+        "voIPFrameLoss": {
+          "mean": 0.5172118783879234,
+          "std": 1.8680694444662047
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1349.5716905329034,
+          "std": 238.88640342458407
+        },
+        "voIPPlayoutLoss": {
+          "mean": 16.1575767331477,
+          "std": 5.584107670861047
+        }
+      }
+    },
+    "rb_5": {
+      "ue_5": {
+        "voIPFrameLoss": {
+          "mean": 0.0,
+          "std": 0.0
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1379.7432920656245,
+          "std": 207.87292809740367
+        },
+        "voIPPlayoutLoss": {
+          "mean": 0.44988258703560396,
+          "std": 0.9164890933796549
+        }
+      },
+      "ue_10": {
+        "voIPFrameLoss": {
+          "mean": 0.0009103488456776521,
+          "std": 0.013806123814819483
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1385.3048579315332,
+          "std": 222.28159332906228
+        },
+        "voIPPlayoutLoss": {
+          "mean": 0.8357012125038246,
+          "std": 1.4208027179783933
+        }
+      },
+      "ue_15": {
+        "voIPFrameLoss": {
+          "mean": 0.027298464943459798,
+          "std": 0.2124196470920095
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1368.8764214099585,
+          "std": 237.04905222252233
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.0691826559658064,
+          "std": 1.5526452922821692
+        }
+      },
+      "ue_20": {
+        "voIPFrameLoss": {
+          "mean": 0.03494602412742889,
+          "std": 0.4319725596878185
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1338.0111928221775,
+          "std": 242.3027639853521
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.4209124403666147,
+          "std": 1.7677412629716973
+        }
+      },
+      "ue_25": {
+        "voIPFrameLoss": {
+          "mean": 0.014849944315709459,
+          "std": 0.1053010169522848
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1356.6439679959608,
+          "std": 244.96490153616486
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.4821476235761049,
+          "std": 1.7089874931733862
+        }
+      },
+      "ue_30": {
+        "voIPFrameLoss": {
+          "mean": 0.016551795267334423,
+          "std": 0.1589259828808919
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1381.180482718143,
+          "std": 229.69074268229062
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.6742198069295215,
+          "std": 1.7313937966496953
+        }
+      },
+      "ue_35": {
+        "voIPFrameLoss": {
+          "mean": 0.03050343223995183,
+          "std": 0.20407317964732719
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1380.5039896430933,
+          "std": 242.12579339389015
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.160277860683415,
+          "std": 1.9336758875399647
+        }
+      },
+      "ue_40": {
+        "voIPFrameLoss": {
+          "mean": 0.0622603683327099,
+          "std": 0.5225308588678774
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1380.5851308328636,
+          "std": 228.60752535115608
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.816324434344855,
+          "std": 2.0813295665397984
+        }
+      },
+      "ue_45": {
+        "voIPFrameLoss": {
+          "mean": 0.07227055905794684,
+          "std": 0.5225747016961302
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1380.2616429414632,
+          "std": 232.65512764545838
+        },
+        "voIPPlayoutLoss": {
+          "mean": 3.589426100806798,
+          "std": 2.3411845480796947
+        }
+      },
+      "ue_50": {
+        "voIPFrameLoss": {
+          "mean": 0.11026890621456752,
+          "std": 0.7204816693830196
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1368.4924217975256,
+          "std": 241.34099558421465
+        },
+        "voIPPlayoutLoss": {
+          "mean": 4.249952132462289,
+          "std": 2.424888085249782
+        }
+      },
+      "ue_55": {
+        "voIPFrameLoss": {
+          "mean": 0.10488450461619712,
+          "std": 0.563757477736417
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1369.3063727595377,
+          "std": 232.0200488857317
+        },
+        "voIPPlayoutLoss": {
+          "mean": 5.385493852482435,
+          "std": 2.8307218811810664
+        }
+      },
+      "ue_60": {
+        "voIPFrameLoss": {
+          "mean": 0.09956342903883178,
+          "std": 0.6882393807950005
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1376.0864589634539,
+          "std": 231.78251170101032
+        },
+        "voIPPlayoutLoss": {
+          "mean": 6.1315436152972635,
+          "std": 3.0550699653929927
+        }
+      },
+      "ue_65": {
+        "voIPFrameLoss": {
+          "mean": 0.13731500386567083,
+          "std": 0.6498322190823363
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1367.2540053881364,
+          "std": 240.39584859848773
+        },
+        "voIPPlayoutLoss": {
+          "mean": 7.638406013509812,
+          "std": 3.4800690238125624
+        }
+      },
+      "ue_70": {
+        "voIPFrameLoss": {
+          "mean": 0.16980276900086674,
+          "std": 0.8165993824832651
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1363.616031607258,
+          "std": 234.5924672891924
+        },
+        "voIPPlayoutLoss": {
+          "mean": 9.035392251165643,
+          "std": 3.842527995159383
+        }
+      },
+      "ue_75": {
+        "voIPFrameLoss": {
+          "mean": 0.23426284015120005,
+          "std": 1.0991623580372425
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1364.8447082507193,
+          "std": 240.83947619148603
+        },
+        "voIPPlayoutLoss": {
+          "mean": 10.41708889120887,
+          "std": 4.152607284598623
+        }
+      },
+      "ue_80": {
+        "voIPFrameLoss": {
+          "mean": 0.2225867875602799,
+          "std": 0.9442917490115792
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1363.9837473790835,
+          "std": 233.96669699172222
+        },
+        "voIPPlayoutLoss": {
+          "mean": 11.89471796184289,
+          "std": 4.576646359566008
+        }
+      }
+    },
+    "rb_6": {
+      "ue_5": {
+        "voIPFrameLoss": {
+          "mean": 0.0,
+          "std": 0.0
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1353.296407205581,
+          "std": 214.42304577739188
+        },
+        "voIPPlayoutLoss": {
+          "mean": 0.6605523214878218,
+          "std": 1.400601852709844
+        }
+      },
+      "ue_10": {
+        "voIPFrameLoss": {
+          "mean": 0.0016329863237395216,
+          "std": 0.02476546378951287
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1357.6434508921482,
+          "std": 230.5431533426896
+        },
+        "voIPPlayoutLoss": {
+          "mean": 0.7299611717731488,
+          "std": 1.2910369221929734
+        }
+      },
+      "ue_15": {
+        "voIPFrameLoss": {
+          "mean": 0.012798879776312666,
+          "std": 0.11209428150981222
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1375.6871199368893,
+          "std": 240.24424005703386
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.0763101892077167,
+          "std": 1.697817885402594
+        }
+      },
+      "ue_20": {
+        "voIPFrameLoss": {
+          "mean": 0.0096530122989195,
+          "std": 0.07552735577843937
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1361.7481000837374,
+          "std": 237.3626569224331
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.4095571722250178,
+          "std": 1.850495678364147
+        }
+      },
+      "ue_25": {
+        "voIPFrameLoss": {
+          "mean": 0.009259464909554139,
+          "std": 0.07544161559644967
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1366.7756639168301,
+          "std": 255.93546219857072
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.3381747125808447,
+          "std": 1.769796017565951
+        }
+      },
+      "ue_30": {
+        "voIPFrameLoss": {
+          "mean": 0.01586062486108765,
+          "std": 0.14700410294186855
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1373.3412999473053,
+          "std": 237.60383592165152
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.255114615391389,
+          "std": 1.5530382163284269
+        }
+      },
+      "ue_35": {
+        "voIPFrameLoss": {
+          "mean": 0.03016463027654388,
+          "std": 0.27451466518481565
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1379.4763003028866,
+          "std": 247.01803224203246
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.6175749180234118,
+          "std": 1.8569587466530781
+        }
+      },
+      "ue_40": {
+        "voIPFrameLoss": {
+          "mean": 0.03945573698023865,
+          "std": 0.3386728443969584
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1361.3210493175939,
+          "std": 245.7247549189821
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.737415087046253,
+          "std": 1.7065924302082716
+        }
+      },
+      "ue_45": {
+        "voIPFrameLoss": {
+          "mean": 0.05851062393235943,
+          "std": 0.41866299429413384
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1378.5219427449344,
+          "std": 240.61663765070816
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.2681705492137056,
+          "std": 2.0046078162366516
+        }
+      },
+      "ue_50": {
+        "voIPFrameLoss": {
+          "mean": 0.045465424577252264,
+          "std": 0.3998903529816091
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1373.3879021418572,
+          "std": 234.42750470683006
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.566009149437311,
+          "std": 1.9713963947446036
+        }
+      },
+      "ue_55": {
+        "voIPFrameLoss": {
+          "mean": 0.0487230895716341,
+          "std": 0.3632396349855055
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1382.7832146661065,
+          "std": 230.16888695501348
+        },
+        "voIPPlayoutLoss": {
+          "mean": 3.3481290973755113,
+          "std": 2.279327319974876
+        }
+      },
+      "ue_60": {
+        "voIPFrameLoss": {
+          "mean": 0.0762092611491539,
+          "std": 0.5290545484969825
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1364.01757913454,
+          "std": 227.71842541400008
+        },
+        "voIPPlayoutLoss": {
+          "mean": 3.8633772090178717,
+          "std": 2.4481670631949477
+        }
+      },
+      "ue_65": {
+        "voIPFrameLoss": {
+          "mean": 0.11000978602013797,
+          "std": 0.6935939225135876
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1373.6038940874164,
+          "std": 240.95804037772123
+        },
+        "voIPPlayoutLoss": {
+          "mean": 4.64787667263035,
+          "std": 2.6556193707737785
+        }
+      },
+      "ue_70": {
+        "voIPFrameLoss": {
+          "mean": 0.10103660692690522,
+          "std": 0.6060972893994977
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1374.0840073451886,
+          "std": 241.5958213278989
+        },
+        "voIPPlayoutLoss": {
+          "mean": 5.500524184493734,
+          "std": 2.85375770060309
+        }
+      },
+      "ue_75": {
+        "voIPFrameLoss": {
+          "mean": 0.12108569950622591,
+          "std": 0.6971793435209017
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1372.5720104557308,
+          "std": 238.27746454910448
+        },
+        "voIPPlayoutLoss": {
+          "mean": 6.406387204696127,
+          "std": 3.1014603271329113
+        }
+      },
+      "ue_80": {
+        "voIPFrameLoss": {
+          "mean": 0.14293000471108838,
+          "std": 0.75940529420072
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1372.3466415228438,
+          "std": 231.76464366852943
+        },
+        "voIPPlayoutLoss": {
+          "mean": 7.645318449442594,
+          "std": 3.412285674928891
+        }
+      }
+    },
+    "rb_7": {
+      "ue_5": {
+        "voIPFrameLoss": {
+          "mean": 0.001155139262556,
+          "std": 0.008887721504170382
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1434.185888954423,
+          "std": 235.58327237408332
+        },
+        "voIPPlayoutLoss": {
+          "mean": 0.5486497552758223,
+          "std": 0.981286790306317
+        }
+      },
+      "ue_10": {
+        "voIPFrameLoss": {
+          "mean": 0.004276348220447565,
+          "std": 0.059150273316608486
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1353.4554405205206,
+          "std": 244.30258050890808
+        },
+        "voIPPlayoutLoss": {
+          "mean": 0.7431855552420994,
+          "std": 1.4527789367916801
+        }
+      },
+      "ue_15": {
+        "voIPFrameLoss": {
+          "mean": 0.01827968150961435,
+          "std": 0.18273549048456128
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1379.5722162103918,
+          "std": 234.29481889829313
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.1642142776256603,
+          "std": 1.66654477689929
+        }
+      },
+      "ue_20": {
+        "voIPFrameLoss": {
+          "mean": 0.009865439192077934,
+          "std": 0.17877215258915363
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1374.4054379237766,
+          "std": 232.28504174114062
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.4200424292657143,
+          "std": 1.8867802447431574
+        }
+      },
+      "ue_25": {
+        "voIPFrameLoss": {
+          "mean": 0.010659696611068139,
+          "std": 0.10947186737975527
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1357.4254700717433,
+          "std": 237.88009724531656
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.0822477607055014,
+          "std": 1.468963298753198
+        }
+      },
+      "ue_30": {
+        "voIPFrameLoss": {
+          "mean": 0.02088407893341852,
+          "std": 0.2558243688382555
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1379.0650432418383,
+          "std": 236.4557710449784
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.2310909732705047,
+          "std": 1.562442184611292
+        }
+      },
+      "ue_35": {
+        "voIPFrameLoss": {
+          "mean": 0.031908382896037604,
+          "std": 0.2954344481441797
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1368.481169261556,
+          "std": 236.8624881669868
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.340532576306828,
+          "std": 1.5636341054235428
+        }
+      },
+      "ue_40": {
+        "voIPFrameLoss": {
+          "mean": 0.028604073961356672,
+          "std": 0.2699174318064859
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1375.434729968802,
+          "std": 234.96451480449625
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.458532011894335,
+          "std": 1.7595839035647272
+        }
+      },
+      "ue_45": {
+        "voIPFrameLoss": {
+          "mean": 0.04897482993530756,
+          "std": 0.4460084046811744
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1369.3911235160506,
+          "std": 238.75262924137485
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.5899152270773966,
+          "std": 1.6894251904082929
+        }
+      },
+      "ue_50": {
+        "voIPFrameLoss": {
+          "mean": 0.04684212014485708,
+          "std": 0.4078425352845216
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1374.9853706137555,
+          "std": 237.6408905868061
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.9693837837949004,
+          "std": 1.8305461684832591
+        }
+      },
+      "ue_55": {
+        "voIPFrameLoss": {
+          "mean": 0.04808455552374546,
+          "std": 0.5427678043196997
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1361.7521078441807,
+          "std": 239.93606636194932
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.05313971334347,
+          "std": 1.7655447912847844
+        }
+      },
+      "ue_60": {
+        "voIPFrameLoss": {
+          "mean": 0.050194320934807496,
+          "std": 0.38371555623947357
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1372.7418936242032,
+          "std": 224.87739224693647
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.4852943741562417,
+          "std": 1.951330496093967
+        }
+      },
+      "ue_65": {
+        "voIPFrameLoss": {
+          "mean": 0.06707657160529837,
+          "std": 0.5420148370819632
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1378.1092713322673,
+          "std": 238.61540458038826
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.836658339163299,
+          "std": 2.1067087374717213
+        }
+      },
+      "ue_70": {
+        "voIPFrameLoss": {
+          "mean": 0.09731938197380555,
+          "std": 0.6431820707983738
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1374.2697294209336,
+          "std": 244.25830033283512
+        },
+        "voIPPlayoutLoss": {
+          "mean": 3.4995497250248517,
+          "std": 2.3244796024425023
+        }
+      },
+      "ue_75": {
+        "voIPFrameLoss": {
+          "mean": 0.08647019212962487,
+          "std": 0.5589411275108032
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1363.342883977863,
+          "std": 239.2131572204593
+        },
+        "voIPPlayoutLoss": {
+          "mean": 4.002474731853656,
+          "std": 2.4574862756208544
+        }
+      },
+      "ue_80": {
+        "voIPFrameLoss": {
+          "mean": 0.09613503081930946,
+          "std": 0.6038108817144272
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1369.3830642394023,
+          "std": 236.02799728123077
+        },
+        "voIPPlayoutLoss": {
+          "mean": 4.693949400646747,
+          "std": 2.6560849885931237
+        }
+      }
+    },
+    "rb_8": {
+      "ue_5": {
+        "voIPFrameLoss": {
+          "mean": 0.0,
+          "std": 0.0
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1360.9093647022466,
+          "std": 267.18851468346327
+        },
+        "voIPPlayoutLoss": {
+          "mean": 0.5387600296475712,
+          "std": 1.2297680139944227
+        }
+      },
+      "ue_10": {
+        "voIPFrameLoss": {
+          "mean": 0.007113697917218957,
+          "std": 0.07814725759725709
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1381.8124213707993,
+          "std": 231.38579255360816
+        },
+        "voIPPlayoutLoss": {
+          "mean": 0.7023681448792852,
+          "std": 1.310142481400561
+        }
+      },
+      "ue_15": {
+        "voIPFrameLoss": {
+          "mean": 0.011988238595295363,
+          "std": 0.21511656360900638
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1381.6083614486365,
+          "std": 227.900248800112
+        },
+        "voIPPlayoutLoss": {
+          "mean": 0.9671732253078901,
+          "std": 1.5100101240506991
+        }
+      },
+      "ue_20": {
+        "voIPFrameLoss": {
+          "mean": 0.027320833452490565,
+          "std": 0.3157411996600024
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1364.5801936256114,
+          "std": 242.6035021140697
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.4190421717540056,
+          "std": 1.8548898785252972
+        }
+      },
+      "ue_25": {
+        "voIPFrameLoss": {
+          "mean": 0.03037907921110774,
+          "std": 0.2943894862613785
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1377.651000406211,
+          "std": 244.6651883307531
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.1801428024580156,
+          "std": 1.6072524117900673
+        }
+      },
+      "ue_30": {
+        "voIPFrameLoss": {
+          "mean": 0.017327788361698925,
+          "std": 0.11937891867610977
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1376.1965480290103,
+          "std": 246.79215655691067
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.150027283220213,
+          "std": 1.6750706292791395
+        }
+      },
+      "ue_35": {
+        "voIPFrameLoss": {
+          "mean": 0.013302493855610697,
+          "std": 0.18274760745715057
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1360.6322396574722,
+          "std": 238.57302519588197
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.3623430871790463,
+          "std": 1.6950528324726117
+        }
+      },
+      "ue_40": {
+        "voIPFrameLoss": {
+          "mean": 0.020551729751198816,
+          "std": 0.17583491188574005
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1352.363226138974,
+          "std": 247.26866988072302
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.3470516522908502,
+          "std": 1.668029413421495
+        }
+      },
+      "ue_45": {
+        "voIPFrameLoss": {
+          "mean": 0.03820674851007665,
+          "std": 0.319475257220816
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1375.781251507249,
+          "std": 237.17606014562554
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.36750404489887,
+          "std": 1.684792183753999
+        }
+      },
+      "ue_50": {
+        "voIPFrameLoss": {
+          "mean": 0.031486650402350096,
+          "std": 0.29591631517349476
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1374.4111253447236,
+          "std": 241.87503954893157
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.5074085980457945,
+          "std": 1.7333670154457397
+        }
+      },
+      "ue_55": {
+        "voIPFrameLoss": {
+          "mean": 0.036917639067461025,
+          "std": 0.3064953740397977
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1364.061307772295,
+          "std": 237.19202325237512
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.5906709120899514,
+          "std": 1.635425064801375
+        }
+      },
+      "ue_60": {
+        "voIPFrameLoss": {
+          "mean": 0.06330588284100803,
+          "std": 0.5281432840137797
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1365.2908275603895,
+          "std": 233.77134098675427
+        },
+        "voIPPlayoutLoss": {
+          "mean": 1.783359291901507,
+          "std": 1.7012965147465464
+        }
+      },
+      "ue_65": {
+        "voIPFrameLoss": {
+          "mean": 0.05724277227060258,
+          "std": 0.482734844785873
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1376.8573022409162,
+          "std": 234.65601590818733
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.1166707176556083,
+          "std": 1.8044049989746125
+        }
+      },
+      "ue_70": {
+        "voIPFrameLoss": {
+          "mean": 0.06012778308901055,
+          "std": 0.41792618507272494
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1375.4207554426887,
+          "std": 243.23977902777546
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.384674415619959,
+          "std": 1.9774640296631465
+        }
+      },
+      "ue_75": {
+        "voIPFrameLoss": {
+          "mean": 0.07604685349374599,
+          "std": 0.4942604763532841
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1366.875085664756,
+          "std": 235.4366292923985
+        },
+        "voIPPlayoutLoss": {
+          "mean": 2.7108884534353814,
+          "std": 2.027151879519855
+        }
+      },
+      "ue_80": {
+        "voIPFrameLoss": {
+          "mean": 0.08620083341400935,
+          "std": 0.5927167803559237
+        },
+        "voIPReceivedThroughput": {
+          "mean": 1376.7932692515055,
+          "std": 233.63018986628407
+        },
+        "voIPPlayoutLoss": {
+          "mean": 3.08705301139081,
+          "std": 2.16756582435386
+        }
+      }
+    }
+  }
+}

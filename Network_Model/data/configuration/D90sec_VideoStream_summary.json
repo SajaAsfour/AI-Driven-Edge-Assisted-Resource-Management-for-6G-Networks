@@ -1,0 +1,1214 @@
+{
+  "meta": {
+    "rb_range": {
+      "start": 1,
+      "end": 8,
+      "step": 1
+    },
+    "ue_range": {
+      "start": 10,
+      "end": 80,
+      "step": 5
+    },
+    "metrics": [
+      "rtVideoStreamingEnd2endDelaySegment",
+      "rtVideoStreamingSegmentLoss"
+    ],
+    "statistics": [
+      "mean",
+      "std"
+    ],
+    "units": {
+      "rtVideoStreamingEnd2endDelaySegment": "ms",
+      "rtVideoStreamingSegmentLoss": "%"
+    }
+  },
+  "data": {
+    "rb_1": {
+      "ue_10": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.421168778521746,
+          "std": 14.494218782445676
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 35.82835820895522,
+          "std": 18.79928920295682
+        }
+      },
+      "ue_15": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.312730126071134,
+          "std": 16.3664187627835
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 31.641304347826086,
+          "std": 20.47396176532263
+        }
+      },
+      "ue_20": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.665653247457378,
+          "std": 15.489478236188585
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 30.83495145631068,
+          "std": 22.850364517356212
+        }
+      },
+      "ue_25": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.048761909113438,
+          "std": 15.641342667583334
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 24.576923076923077,
+          "std": 20.51671935190661
+        }
+      },
+      "ue_30": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.233468323894456,
+          "std": 15.089671022641626
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 23.17808219178082,
+          "std": 23.13437058801347
+        }
+      },
+      "ue_35": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.42073251258677,
+          "std": 15.477455534033751
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 18.453757225433527,
+          "std": 19.22678758402409
+        }
+      },
+      "ue_40": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.90457263968636,
+          "std": 15.149718074620214
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 17.68014705882353,
+          "std": 19.018769753619093
+        }
+      },
+      "ue_45": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.098989372981904,
+          "std": 14.560779555131404
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 16.06645569620253,
+          "std": 17.42985070613492
+        }
+      },
+      "ue_50": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.538080944756548,
+          "std": 14.998926632174232
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.128930817610064,
+          "std": 17.285229466523532
+        }
+      },
+      "ue_55": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.19846937227608,
+          "std": 14.655064772751663
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.941880341880344,
+          "std": 15.80985910073679
+        }
+      },
+      "ue_65": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.730374735577215,
+          "std": 14.634427205883581
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 15.257075471698114,
+          "std": 17.487333179714764
+        }
+      },
+      "ue_70": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.209541569576395,
+          "std": 14.816441015267689
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.569808027923209,
+          "std": 16.446139685280194
+        }
+      },
+      "ue_75": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.879080509357276,
+          "std": 14.401338823125911
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 15.796482412060302,
+          "std": 18.03293949293909
+        }
+      },
+      "ue_80": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.324693740505786,
+          "std": 14.476881958971907
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.463888888888889,
+          "std": 17.43487727762686
+        }
+      }
+    },
+    "rb_2": {
+      "ue_10": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.04038447612733,
+          "std": 15.716895720572293
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 33.116279069767444,
+          "std": 19.746432949449026
+        }
+      },
+      "ue_15": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.091781281066574,
+          "std": 16.878228478822205
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 34.38304093567252,
+          "std": 19.279358715479063
+        }
+      },
+      "ue_20": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.876902769451885,
+          "std": 16.271113600785572
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 30.39276485788114,
+          "std": 21.782042553427146
+        }
+      },
+      "ue_25": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.58808357760221,
+          "std": 16.933344178546918
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 22.996296296296297,
+          "std": 19.732776005082943
+        }
+      },
+      "ue_30": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.333565190831024,
+          "std": 16.372653210615603
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 22.008522727272727,
+          "std": 20.663058593541166
+        }
+      },
+      "ue_35": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.7699948617725,
+          "std": 16.626638413790932
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 18.412698412698415,
+          "std": 19.926728326297585
+        }
+      },
+      "ue_40": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.179863646026718,
+          "std": 17.55201397481129
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 17.90954773869347,
+          "std": 19.7657202312254
+        }
+      },
+      "ue_45": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.043921830074257,
+          "std": 17.089863048659577
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 18.3735119047619,
+          "std": 20.296681484674803
+        }
+      },
+      "ue_50": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.340139801440106,
+          "std": 17.26307827631856
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 15.5,
+          "std": 18.139020302642656
+        }
+      },
+      "ue_55": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 27.392959381615448,
+          "std": 16.72930799230697
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.666062801932366,
+          "std": 17.48106911524004
+        }
+      },
+      "ue_65": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 27.701826168055263,
+          "std": 17.574967331147157
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.110382513661202,
+          "std": 17.09910705116715
+        }
+      },
+      "ue_70": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 26.97185741935694,
+          "std": 17.057369166979328
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 15.034883720930232,
+          "std": 17.236267608242525
+        }
+      },
+      "ue_75": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.1286623942721,
+          "std": 18.07566330496802
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.699107142857143,
+          "std": 17.028710037698605
+        }
+      },
+      "ue_80": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 26.12285531971445,
+          "std": 16.73137141906813
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.249771689497717,
+          "std": 17.331351380906106
+        }
+      }
+    },
+    "rb_3": {
+      "ue_10": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.08814673010702,
+          "std": 16.54988284379276
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 33.3768115942029,
+          "std": 18.74015774111967
+        }
+      },
+      "ue_15": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.657467589333137,
+          "std": 17.864774731853764
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 29.85909090909091,
+          "std": 19.818695959481495
+        }
+      },
+      "ue_20": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.389740071158496,
+          "std": 16.955839758733696
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 29.896947496947494,
+          "std": 20.429885578615835
+        }
+      },
+      "ue_25": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.004247042717385,
+          "std": 17.29050151410124
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 23.83254344391785,
+          "std": 19.77488050138365
+        }
+      },
+      "ue_30": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.414534137860905,
+          "std": 17.194760265806053
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 20.86382113821138,
+          "std": 20.576802286153054
+        }
+      },
+      "ue_35": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.116359941234503,
+          "std": 17.320448053417383
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 17.26885325558795,
+          "std": 18.311094944289735
+        }
+      },
+      "ue_40": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.95361315647678,
+          "std": 17.745128053703475
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 17.873899371069182,
+          "std": 18.586089252275183
+        }
+      },
+      "ue_45": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.798645783390768,
+          "std": 17.74814766462635
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 16.16476923076923,
+          "std": 18.28974065311404
+        }
+      },
+      "ue_50": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.191452718347264,
+          "std": 18.22454929252597
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.983545647558389,
+          "std": 16.850961729464725
+        }
+      },
+      "ue_55": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.042990404600175,
+          "std": 17.76655370757132
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.371101364522415,
+          "std": 15.963823266884082
+        }
+      },
+      "ue_65": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.367587109192247,
+          "std": 17.655954320122863
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.860134003350083,
+          "std": 16.68325205115684
+        }
+      },
+      "ue_70": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.649838998311193,
+          "std": 17.483636513468188
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.4170257260101,
+          "std": 16.12457132120027
+        }
+      },
+      "ue_75": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.94473539346065,
+          "std": 17.652476221574606
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.931948051948053,
+          "std": 16.38347880352728
+        }
+      },
+      "ue_80": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.432210742345728,
+          "std": 17.694367778022198
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 15.595061728395063,
+          "std": 18.63786923854458
+        }
+      }
+    },
+    "rb_4": {
+      "ue_10": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.14222829130988,
+          "std": 15.69924178675998
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 30.753360215053764,
+          "std": 19.481123165786315
+        }
+      },
+      "ue_15": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.287940292487423,
+          "std": 18.211411002590488
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 29.697076023391805,
+          "std": 19.271073802923283
+        }
+      },
+      "ue_20": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.704652867762398,
+          "std": 16.667422338616245
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 27.020899470899476,
+          "std": 18.691704167440232
+        }
+      },
+      "ue_25": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.206217871110784,
+          "std": 17.341289542006994
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 25.71468089310413,
+          "std": 20.74756383362292
+        }
+      },
+      "ue_30": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.060133149515252,
+          "std": 17.96891156984721
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 20.273285714285716,
+          "std": 20.243754629770383
+        }
+      },
+      "ue_35": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.36585948935862,
+          "std": 17.75705851804207
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 19.604962435745353,
+          "std": 20.300131815317428
+        }
+      },
+      "ue_40": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.23949549289298,
+          "std": 18.20870963799821
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 16.74379929886065,
+          "std": 18.094120840751582
+        }
+      },
+      "ue_45": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.447830288927896,
+          "std": 17.784711450336516
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 15.785748792270534,
+          "std": 17.25980446273219
+        }
+      },
+      "ue_50": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.434343893569103,
+          "std": 18.16191827333086
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 15.762661141804788,
+          "std": 17.874644783911403
+        }
+      },
+      "ue_55": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.79522340228884,
+          "std": 18.21095744773427
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.586557788944726,
+          "std": 14.629148690060415
+        }
+      },
+      "ue_60": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.69110284517735,
+          "std": 18.195840202923797
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.498628030023378,
+          "std": 16.973918069318312
+        }
+      },
+      "ue_65": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.28196737752317,
+          "std": 18.088619268172685
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.000963149078727,
+          "std": 14.73470967597036
+        }
+      },
+      "ue_70": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.06652895683144,
+          "std": 18.31439465376416
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.699632034632033,
+          "std": 16.907836304668123
+        }
+      },
+      "ue_75": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.8266297148847,
+          "std": 18.036873355822326
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.360729847494556,
+          "std": 16.679720570360747
+        }
+      },
+      "ue_80": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.226527827127804,
+          "std": 17.775103142161935
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.543896198830408,
+          "std": 16.66036598559771
+        }
+      }
+    },
+    "rb_5": {
+      "ue_10": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.158092001659252,
+          "std": 16.195394920207754
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 30.674764291681587,
+          "std": 18.639457555950965
+        }
+      },
+      "ue_15": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.984343614302915,
+          "std": 17.327751691011727
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 26.688041431261773,
+          "std": 17.24503926417743
+        }
+      },
+      "ue_20": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.202148642598786,
+          "std": 17.467722359696772
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 24.840014684287812,
+          "std": 19.889208449139282
+        }
+      },
+      "ue_25": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.95009917244732,
+          "std": 17.71750707044005
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 23.260784867306608,
+          "std": 19.38640701602667
+        }
+      },
+      "ue_30": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.490555111602806,
+          "std": 17.569861103492542
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 21.47209429824561,
+          "std": 19.994282478491918
+        }
+      },
+      "ue_35": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.106374411469027,
+          "std": 17.811875496575702
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 17.342904290429047,
+          "std": 18.389140879343994
+        }
+      },
+      "ue_40": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.48602234055862,
+          "std": 17.99267003271304
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 17.503992015968063,
+          "std": 18.68991108570774
+        }
+      },
+      "ue_45": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.858476388096914,
+          "std": 18.30100244607356
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.28610577743642,
+          "std": 15.668866260619396
+        }
+      },
+      "ue_50": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.009084002651058,
+          "std": 18.334525760923807
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 15.162967798085294,
+          "std": 16.993080889229773
+        }
+      },
+      "ue_55": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.92907627040328,
+          "std": 18.837179182724114
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.301564876564877,
+          "std": 15.26692490654437
+        }
+      },
+      "ue_60": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.159494538983058,
+          "std": 18.509467973539714
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.27981859410431,
+          "std": 15.400463086103137
+        }
+      },
+      "ue_65": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.73098217151695,
+          "std": 18.601994633169035
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.267549491706795,
+          "std": 16.33187664769115
+        }
+      },
+      "ue_70": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.8704302391507,
+          "std": 18.233045454046582
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.443965242346936,
+          "std": 15.009915950598664
+        }
+      },
+      "ue_75": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.873832279126795,
+          "std": 18.128928151056055
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 16.217869943676394,
+          "std": 17.383339886164194
+        }
+      },
+      "ue_80": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.26159137219513,
+          "std": 18.1608399517711
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.04283600334556,
+          "std": 16.673161515069758
+        }
+      }
+    },
+    "rb_6": {
+      "ue_10": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 26.4848733818805,
+          "std": 16.368910254988457
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 27.74507936507937,
+          "std": 18.391065334639645
+        }
+      },
+      "ue_15": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 27.0245975093697,
+          "std": 16.704061682238795
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 26.83410808030097,
+          "std": 19.598172470889015
+        }
+      },
+      "ue_20": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 27.201946286792655,
+          "std": 16.817463558189672
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 23.972901844532277,
+          "std": 19.2405082467738
+        }
+      },
+      "ue_25": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.733608533976895,
+          "std": 17.250326066849343
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 21.462427309590304,
+          "std": 20.047341427389195
+        }
+      },
+      "ue_30": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.57521786893386,
+          "std": 17.666119720828103
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 19.807954105515076,
+          "std": 18.577638934532644
+        }
+      },
+      "ue_35": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.03819433567668,
+          "std": 17.93120405390773
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 16.82479954638385,
+          "std": 18.06585724668956
+        }
+      },
+      "ue_40": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.680852152956707,
+          "std": 18.128129619830233
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 15.599509894867037,
+          "std": 17.539482337262786
+        }
+      },
+      "ue_45": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.29138117539661,
+          "std": 18.700105729083862
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.253648208127629,
+          "std": 16.26252827356114
+        }
+      },
+      "ue_50": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.481627032455297,
+          "std": 18.880002322926043
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.235820397624316,
+          "std": 15.327417648483998
+        }
+      },
+      "ue_55": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.812565342846394,
+          "std": 18.934714906705526
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.823049692598152,
+          "std": 15.362841110643009
+        }
+      },
+      "ue_60": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.933698766369098,
+          "std": 18.653479617551678
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.855706790210029,
+          "std": 15.382139376914925
+        }
+      },
+      "ue_65": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.860863835698133,
+          "std": 18.668029432034412
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.43158699882545,
+          "std": 14.949286499063064
+        }
+      },
+      "ue_70": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.1740123127747,
+          "std": 18.78963303354991
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.645946275607777,
+          "std": 15.451899889360563
+        }
+      },
+      "ue_75": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.013238424404975,
+          "std": 18.755155146844157
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.827771101719131,
+          "std": 14.911825052765975
+        }
+      },
+      "ue_80": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.140891923893218,
+          "std": 18.82020093708344
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.579304000668914,
+          "std": 15.083939795704005
+        }
+      }
+    },
+    "rb_7": {
+      "ue_10": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 24.289834832863612,
+          "std": 16.48877725710272
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 26.113377378762767,
+          "std": 18.62137057188552
+        }
+      },
+      "ue_15": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 25.225439627614833,
+          "std": 16.379634310749925
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 22.761425145633158,
+          "std": 17.63959334298006
+        }
+      },
+      "ue_20": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 27.627632794521432,
+          "std": 17.118807948684633
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 21.14166391876353,
+          "std": 19.09299914288971
+        }
+      },
+      "ue_25": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.294474695519234,
+          "std": 17.70940660860841
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 19.16881496360791,
+          "std": 17.899665261254988
+        }
+      },
+      "ue_30": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.854423829429372,
+          "std": 17.752287831815124
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 17.110308679461184,
+          "std": 17.239782512433624
+        }
+      },
+      "ue_35": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.02668277667973,
+          "std": 18.71433374584299
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 16.23204004839982,
+          "std": 17.178531362289846
+        }
+      },
+      "ue_40": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.603116802494263,
+          "std": 18.170190872907167
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 16.75572563977047,
+          "std": 18.204445549704957
+        }
+      },
+      "ue_45": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.333979049117232,
+          "std": 18.149318355644617
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.7915040360516,
+          "std": 17.05325864251845
+        }
+      },
+      "ue_50": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.294283770091077,
+          "std": 18.32067374139503
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.325235950235953,
+          "std": 15.908090590872566
+        }
+      },
+      "ue_55": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.963241221720764,
+          "std": 18.809021752245233
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.078078799193761,
+          "std": 13.811163539966662
+        }
+      },
+      "ue_60": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.029067570891222,
+          "std": 18.422489991427767
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.592277982469133,
+          "std": 15.502670808072825
+        }
+      },
+      "ue_65": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.344099888176444,
+          "std": 18.967084891467618
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.573743322545718,
+          "std": 14.99651761952251
+        }
+      },
+      "ue_70": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.269526951728306,
+          "std": 18.733698742646556
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.579150864287735,
+          "std": 15.001038613631984
+        }
+      },
+      "ue_75": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.263899347197892,
+          "std": 18.580946913223368
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.75346525412663,
+          "std": 14.65703448490963
+        }
+      },
+      "ue_80": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.448741037653107,
+          "std": 18.788377476840605
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.211138774964189,
+          "std": 15.299271314463853
+        }
+      }
+    },
+    "rb_8": {
+      "ue_10": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 22.731172975053433,
+          "std": 15.819394375912628
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 23.556173894915656,
+          "std": 19.77466361264315
+        }
+      },
+      "ue_15": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 25.67085838208217,
+          "std": 17.018568541301196
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 23.118414903688166,
+          "std": 18.698026582804015
+        }
+      },
+      "ue_20": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 26.857102880839303,
+          "std": 16.96473259814539
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 21.70860016933309,
+          "std": 19.712079858683303
+        }
+      },
+      "ue_25": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 27.082039482619585,
+          "std": 16.938379768617715
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 18.437345801163694,
+          "std": 18.807845671621262
+        }
+      },
+      "ue_30": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 27.614274583677147,
+          "std": 18.04359821983434
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 17.535372194854954,
+          "std": 17.835355989906017
+        }
+      },
+      "ue_35": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 28.87224590857052,
+          "std": 17.855814735982076
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 15.524906474518875,
+          "std": 16.819076039183162
+        }
+      },
+      "ue_40": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.75855658631776,
+          "std": 18.41142021600362
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 14.203056338248643,
+          "std": 16.166023838821385
+        }
+      },
+      "ue_45": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.853492795858624,
+          "std": 18.13783126306989
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.968306450190056,
+          "std": 15.073567076074855
+        }
+      },
+      "ue_50": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.523969159394166,
+          "std": 18.499336320840918
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.977759654308327,
+          "std": 15.783926659715085
+        }
+      },
+      "ue_55": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.514394143528964,
+          "std": 18.576309194565134
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 11.232908890132887,
+          "std": 13.106493211221093
+        }
+      },
+      "ue_60": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.80154682181107,
+          "std": 19.15886539017304
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 12.701052109444415,
+          "std": 15.231514780144382
+        }
+      },
+      "ue_65": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.924120243512593,
+          "std": 18.81423218675518
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 11.181709280070615,
+          "std": 13.302533565764676
+        }
+      },
+      "ue_70": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.898523812951215,
+          "std": 18.63406942021317
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.040041813103656,
+          "std": 15.009184028920457
+        }
+      },
+      "ue_75": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 30.140678265887814,
+          "std": 18.74105743999521
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 11.824748317599118,
+          "std": 14.440064999202212
+        }
+      },
+      "ue_80": {
+        "rtVideoStreamingEnd2endDelaySegment": {
+          "mean": 29.226527827127804,
+          "std": 17.775103142161935
+        },
+        "rtVideoStreamingSegmentLoss": {
+          "mean": 13.543896198830408,
+          "std": 16.66036598559771
+        }
+      }
+    }
+  }
+}

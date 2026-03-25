@@ -1,0 +1,804 @@
+{
+  "meta": {
+    "rb_range": {
+      "start": 1,
+      "end": 8,
+      "step": 1
+    },
+    "ue_range": {
+      "start": 5,
+      "end": 80,
+      "step": 5
+    },
+    "metrics": [
+      "cbrReceivedThroughput"
+    ],
+    "statistics": [
+      "mean",
+      "std"
+    ],
+    "units": {
+      "cbrReceivedThroughput": "bps"
+    }
+  },
+  "data": {
+    "rb_1": {
+      "ue_5": {
+        "cbrReceivedThroughput": {
+          "mean": 4894.376811594202,
+          "std": 192.96817967209893
+        }
+      },
+      "ue_10": {
+        "cbrReceivedThroughput": {
+          "mean": 4683.565217391305,
+          "std": 577.7213889486388
+        }
+      },
+      "ue_15": {
+        "cbrReceivedThroughput": {
+          "mean": 4067.9323671497596,
+          "std": 1153.0778839799225
+        }
+      },
+      "ue_20": {
+        "cbrReceivedThroughput": {
+          "mean": 3359.0724637681164,
+          "std": 1441.4333487291685
+        }
+      },
+      "ue_25": {
+        "cbrReceivedThroughput": {
+          "mean": 2857.565217391303,
+          "std": 1542.9008508543245
+        }
+      },
+      "ue_30": {
+        "cbrReceivedThroughput": {
+          "mean": 2536.004830917875,
+          "std": 1630.611021808588
+        }
+      },
+      "ue_35": {
+        "cbrReceivedThroughput": {
+          "mean": 2319.569358178053,
+          "std": 1656.1553969309507
+        }
+      },
+      "ue_40": {
+        "cbrReceivedThroughput": {
+          "mean": 2122.40579710145,
+          "std": 1639.2509029226271
+        }
+      },
+      "ue_45": {
+        "cbrReceivedThroughput": {
+          "mean": 1606.6324110671937,
+          "std": 1653.4317200186224
+        }
+      },
+      "ue_50": {
+        "cbrReceivedThroughput": {
+          "mean": 1296.8985507246373,
+          "std": 1617.9347577655883
+        }
+      },
+      "ue_55": {
+        "cbrReceivedThroughput": {
+          "mean": 1104.685421994885,
+          "std": 1522.1817785244918
+        }
+      },
+      "ue_60": {
+        "cbrReceivedThroughput": {
+          "mean": 958.4028985507243,
+          "std": 1435.2065844883853
+        }
+      },
+      "ue_65": {
+        "cbrReceivedThroughput": {
+          "mean": 836.1474480151227,
+          "std": 1357.2010521107243
+        }
+      },
+      "ue_70": {
+        "cbrReceivedThroughput": {
+          "mean": 761.5607580824973,
+          "std": 1290.5534808694088
+        }
+      },
+      "ue_75": {
+        "cbrReceivedThroughput": {
+          "mean": 696.2308845577214,
+          "std": 1234.5886230584524
+        }
+      },
+      "ue_80": {
+        "cbrReceivedThroughput": {
+          "mean": 631.3260869565215,
+          "std": 1178.4882704352754
+        }
+      }
+    },
+    "rb_2": {
+      "ue_5": {
+        "cbrReceivedThroughput": {
+          "mean": 4988.695652173913,
+          "std": 23.76253399505833
+        }
+      },
+      "ue_10": {
+        "cbrReceivedThroughput": {
+          "mean": 4961.246376811593,
+          "std": 109.80814363008098
+        }
+      },
+      "ue_15": {
+        "cbrReceivedThroughput": {
+          "mean": 4842.077294685994,
+          "std": 405.3648233418847
+        }
+      },
+      "ue_20": {
+        "cbrReceivedThroughput": {
+          "mean": 4634.326086956524,
+          "std": 668.0803130733597
+        }
+      },
+      "ue_25": {
+        "cbrReceivedThroughput": {
+          "mean": 4289.426086956519,
+          "std": 985.9193535159418
+        }
+      },
+      "ue_30": {
+        "cbrReceivedThroughput": {
+          "mean": 3904.8840579710145,
+          "std": 1253.702156159481
+        }
+      },
+      "ue_35": {
+        "cbrReceivedThroughput": {
+          "mean": 3528.4306418219467,
+          "std": 1432.0669159631573
+        }
+      },
+      "ue_40": {
+        "cbrReceivedThroughput": {
+          "mean": 3300.681159420289,
+          "std": 1486.1275316380797
+        }
+      },
+      "ue_45": {
+        "cbrReceivedThroughput": {
+          "mean": 2483.264822134387,
+          "std": 1832.1158871628406
+        }
+      },
+      "ue_50": {
+        "cbrReceivedThroughput": {
+          "mean": 2008.0207039337479,
+          "std": 1876.000636408191
+        }
+      },
+      "ue_55": {
+        "cbrReceivedThroughput": {
+          "mean": 1693.3213981244664,
+          "std": 1837.442730067659
+        }
+      },
+      "ue_60": {
+        "cbrReceivedThroughput": {
+          "mean": 1478.72463768116,
+          "std": 1781.3304257386146
+        }
+      },
+      "ue_65": {
+        "cbrReceivedThroughput": {
+          "mean": 1309.3824826717082,
+          "std": 1734.7536817357732
+        }
+      },
+      "ue_70": {
+        "cbrReceivedThroughput": {
+          "mean": 1189.8996655518395,
+          "std": 1664.831220065579
+        }
+      },
+      "ue_75": {
+        "cbrReceivedThroughput": {
+          "mean": 1090.6166916541727,
+          "std": 1590.7136832766234
+        }
+      },
+      "ue_80": {
+        "cbrReceivedThroughput": {
+          "mean": 999.0117753623188,
+          "std": 1554.0270457930046
+        }
+      }
+    },
+    "rb_3": {
+      "ue_5": {
+        "cbrReceivedThroughput": {
+          "mean": 4993.101449275363,
+          "std": 23.50281696496345
+        }
+      },
+      "ue_10": {
+        "cbrReceivedThroughput": {
+          "mean": 4985.63768115942,
+          "std": 44.90708646509942
+        }
+      },
+      "ue_15": {
+        "cbrReceivedThroughput": {
+          "mean": 4979.400966183575,
+          "std": 64.89129699289688
+        }
+      },
+      "ue_20": {
+        "cbrReceivedThroughput": {
+          "mean": 4941.130434782609,
+          "std": 188.17339148750946
+        }
+      },
+      "ue_25": {
+        "cbrReceivedThroughput": {
+          "mean": 4854.394202898551,
+          "std": 381.5448547114888
+        }
+      },
+      "ue_30": {
+        "cbrReceivedThroughput": {
+          "mean": 4679.381642512075,
+          "std": 663.5052551367902
+        }
+      },
+      "ue_35": {
+        "cbrReceivedThroughput": {
+          "mean": 4462.662525879917,
+          "std": 871.9260416425793
+        }
+      },
+      "ue_40": {
+        "cbrReceivedThroughput": {
+          "mean": 4214.286231884058,
+          "std": 1064.8687571295259
+        }
+      },
+      "ue_45": {
+        "cbrReceivedThroughput": {
+          "mean": 3233.111989459816,
+          "std": 1893.2407260432365
+        }
+      },
+      "ue_50": {
+        "cbrReceivedThroughput": {
+          "mean": 2646.049689440994,
+          "std": 2044.3696403321896
+        }
+      },
+      "ue_55": {
+        "cbrReceivedThroughput": {
+          "mean": 2245.2259164535385,
+          "std": 2028.326943225605
+        }
+      },
+      "ue_60": {
+        "cbrReceivedThroughput": {
+          "mean": 1960.697101449275,
+          "std": 1985.5431882718347
+        }
+      },
+      "ue_65": {
+        "cbrReceivedThroughput": {
+          "mean": 1752.148708254568,
+          "std": 1936.7886701265077
+        }
+      },
+      "ue_70": {
+        "cbrReceivedThroughput": {
+          "mean": 1569.8294314381271,
+          "std": 1884.0111328405083
+        }
+      },
+      "ue_75": {
+        "cbrReceivedThroughput": {
+          "mean": 1436.1489255372314,
+          "std": 1819.7758676006697
+        }
+      },
+      "ue_80": {
+        "cbrReceivedThroughput": {
+          "mean": 1322.511775362319,
+          "std": 1775.7847354275518
+        }
+      }
+    },
+    "rb_4": {
+      "ue_5": {
+        "cbrReceivedThroughput": {
+          "mean": 4997.681159420289,
+          "std": 13.319978055839558
+        }
+      },
+      "ue_10": {
+        "cbrReceivedThroughput": {
+          "mean": 4990.724637681161,
+          "std": 34.679604037320885
+        }
+      },
+      "ue_15": {
+        "cbrReceivedThroughput": {
+          "mean": 4988.193236714978,
+          "std": 44.301804585429146
+        }
+      },
+      "ue_20": {
+        "cbrReceivedThroughput": {
+          "mean": 4987.304347826088,
+          "std": 49.01873359707916
+        }
+      },
+      "ue_25": {
+        "cbrReceivedThroughput": {
+          "mean": 4971.234782608695,
+          "std": 103.62404288889803
+        }
+      },
+      "ue_30": {
+        "cbrReceivedThroughput": {
+          "mean": 4912.483091787439,
+          "std": 256.558327817339
+        }
+      },
+      "ue_35": {
+        "cbrReceivedThroughput": {
+          "mean": 4839.221532091097,
+          "std": 399.63354023261644
+        }
+      },
+      "ue_40": {
+        "cbrReceivedThroughput": {
+          "mean": 4664.072463768115,
+          "std": 678.4337182524705
+        }
+      },
+      "ue_45": {
+        "cbrReceivedThroughput": {
+          "mean": 3685.4650856389976,
+          "std": 1899.1142765432028
+        }
+      },
+      "ue_50": {
+        "cbrReceivedThroughput": {
+          "mean": 3071.6790890269153,
+          "std": 2120.1442936004014
+        }
+      },
+      "ue_55": {
+        "cbrReceivedThroughput": {
+          "mean": 2655.749360613811,
+          "std": 2165.2027465920305
+        }
+      },
+      "ue_60": {
+        "cbrReceivedThroughput": {
+          "mean": 2357.698550724639,
+          "std": 2153.2069135397605
+        }
+      },
+      "ue_65": {
+        "cbrReceivedThroughput": {
+          "mean": 2115.4833018273466,
+          "std": 2111.152911266946
+        }
+      },
+      "ue_70": {
+        "cbrReceivedThroughput": {
+          "mean": 1919.128205128206,
+          "std": 2052.6966974557513
+        }
+      },
+      "ue_75": {
+        "cbrReceivedThroughput": {
+          "mean": 1751.833083458271,
+          "std": 2004.997983725168
+        }
+      },
+      "ue_80": {
+        "cbrReceivedThroughput": {
+          "mean": 1621.3369565217395,
+          "std": 1948.052442950289
+        }
+      }
+    },
+    "rb_5": {
+      "ue_5": {
+        "cbrReceivedThroughput": {
+          "mean": 4997.04347826087,
+          "std": 30.460293450236456
+        }
+      },
+      "ue_10": {
+        "cbrReceivedThroughput": {
+          "mean": 4992.362318840578,
+          "std": 31.63158449610128
+        }
+      },
+      "ue_15": {
+        "cbrReceivedThroughput": {
+          "mean": 4988.415458937197,
+          "std": 47.282085676922
+        }
+      },
+      "ue_20": {
+        "cbrReceivedThroughput": {
+          "mean": 4990.434782608696,
+          "std": 33.42477432872738
+        }
+      },
+      "ue_25": {
+        "cbrReceivedThroughput": {
+          "mean": 4987.843478260869,
+          "std": 43.80723006977779
+        }
+      },
+      "ue_30": {
+        "cbrReceivedThroughput": {
+          "mean": 4983.425120772947,
+          "std": 59.69503705489612
+        }
+      },
+      "ue_35": {
+        "cbrReceivedThroughput": {
+          "mean": 4954.840579710145,
+          "std": 146.4089874535772
+        }
+      },
+      "ue_40": {
+        "cbrReceivedThroughput": {
+          "mean": 4887.778985507246,
+          "std": 327.96837010388106
+        }
+      },
+      "ue_45": {
+        "cbrReceivedThroughput": {
+          "mean": 3891.16996047431,
+          "std": 1905.647932201008
+        }
+      },
+      "ue_55": {
+        "cbrReceivedThroughput": {
+          "mean": 2932.6206308610394,
+          "std": 2266.736931983226
+        }
+      },
+      "ue_60": {
+        "cbrReceivedThroughput": {
+          "mean": 2626.7115942028986,
+          "std": 2269.633573899274
+        }
+      },
+      "ue_65": {
+        "cbrReceivedThroughput": {
+          "mean": 2384.9867674858224,
+          "std": 2240.2359114647493
+        }
+      },
+      "ue_70": {
+        "cbrReceivedThroughput": {
+          "mean": 2206.329988851728,
+          "std": 2202.9096164841926
+        }
+      },
+      "ue_75": {
+        "cbrReceivedThroughput": {
+          "mean": 2042.6806596701654,
+          "std": 2161.411396277744
+        }
+      },
+      "ue_80": {
+        "cbrReceivedThroughput": {
+          "mean": 1888.8115942028987,
+          "std": 2104.7169026841107
+        }
+      }
+    },
+    "rb_6": {
+      "ue_5": {
+        "cbrReceivedThroughput": {
+          "mean": 4999.246376811593,
+          "std": 4.327275783299014
+        }
+      },
+      "ue_10": {
+        "cbrReceivedThroughput": {
+          "mean": 4991.072463768116,
+          "std": 32.713443697680866
+        }
+      },
+      "ue_15": {
+        "cbrReceivedThroughput": {
+          "mean": 4989.188405797101,
+          "std": 37.92909023237459
+        }
+      },
+      "ue_20": {
+        "cbrReceivedThroughput": {
+          "mean": 4989.920289855073,
+          "std": 47.14372225918603
+        }
+      },
+      "ue_25": {
+        "cbrReceivedThroughput": {
+          "mean": 4991.020289855073,
+          "std": 40.85756319580348
+        }
+      },
+      "ue_30": {
+        "cbrReceivedThroughput": {
+          "mean": 4989.4541062801945,
+          "std": 44.59903865960934
+        }
+      },
+      "ue_35": {
+        "cbrReceivedThroughput": {
+          "mean": 4983.167701863355,
+          "std": 66.22073207734424
+        }
+      },
+      "ue_40": {
+        "cbrReceivedThroughput": {
+          "mean": 4969.413043478261,
+          "std": 114.74422486892183
+        }
+      },
+      "ue_45": {
+        "cbrReceivedThroughput": {
+          "mean": 4024.110671936759,
+          "std": 1910.6266419573508
+        }
+      },
+      "ue_50": {
+        "cbrReceivedThroughput": {
+          "mean": 3462.304347826087,
+          "std": 2215.4373219072663
+        }
+      },
+      "ue_55": {
+        "cbrReceivedThroughput": {
+          "mean": 3086.4671781756183,
+          "std": 2317.5274818244234
+        }
+      },
+      "ue_60": {
+        "cbrReceivedThroughput": {
+          "mean": 2791.344927536232,
+          "std": 2342.4599525330796
+        }
+      },
+      "ue_65": {
+        "cbrReceivedThroughput": {
+          "mean": 2565.837429111531,
+          "std": 2333.1656505454057
+        }
+      },
+      "ue_70": {
+        "cbrReceivedThroughput": {
+          "mean": 2382.4035674470456,
+          "std": 2307.1801876901277
+        }
+      },
+      "ue_75": {
+        "cbrReceivedThroughput": {
+          "mean": 2232.923538230884,
+          "std": 2270.131686138389
+        }
+      },
+      "ue_80": {
+        "cbrReceivedThroughput": {
+          "mean": 2087.7545289855066,
+          "std": 2220.6265133550546
+        }
+      }
+    },
+    "rb_7": {
+      "ue_5": {
+        "cbrReceivedThroughput": {
+          "mean": 4999.594202898552,
+          "std": 2.5800186652867514
+        }
+      },
+      "ue_10": {
+        "cbrReceivedThroughput": {
+          "mean": 4997.695652173915,
+          "std": 18.09603285473866
+        }
+      },
+      "ue_15": {
+        "cbrReceivedThroughput": {
+          "mean": 4992.599033816425,
+          "std": 36.795605731270655
+        }
+      },
+      "ue_20": {
+        "cbrReceivedThroughput": {
+          "mean": 4989.695652173913,
+          "std": 41.857779638059874
+        }
+      },
+      "ue_25": {
+        "cbrReceivedThroughput": {
+          "mean": 4991.489855072465,
+          "std": 42.562639083125184
+        }
+      },
+      "ue_30": {
+        "cbrReceivedThroughput": {
+          "mean": 4990.396135265702,
+          "std": 43.79848870502483
+        }
+      },
+      "ue_35": {
+        "cbrReceivedThroughput": {
+          "mean": 4988.2111801242245,
+          "std": 47.25876582460642
+        }
+      },
+      "ue_40": {
+        "cbrReceivedThroughput": {
+          "mean": 4988.760869565219,
+          "std": 42.96653797471211
+        }
+      },
+      "ue_45": {
+        "cbrReceivedThroughput": {
+          "mean": 4072.021080368906,
+          "std": 1921.9215478952638
+        }
+      },
+      "ue_50": {
+        "cbrReceivedThroughput": {
+          "mean": 3531.931677018634,
+          "std": 2239.8575617952656
+        }
+      },
+      "ue_55": {
+        "cbrReceivedThroughput": {
+          "mean": 3166.182438192669,
+          "std": 2352.450685571012
+        }
+      },
+      "ue_60": {
+        "cbrReceivedThroughput": {
+          "mean": 2901.034782608696,
+          "std": 2389.904143887671
+        }
+      },
+      "ue_65": {
+        "cbrReceivedThroughput": {
+          "mean": 2674.628859483302,
+          "std": 2385.26141243053
+        }
+      },
+      "ue_70": {
+        "cbrReceivedThroughput": {
+          "mean": 2505.9208472686732,
+          "std": 2375.54431970692
+        }
+      },
+      "ue_75": {
+        "cbrReceivedThroughput": {
+          "mean": 2362.8115942028985,
+          "std": 2348.8003906243657
+        }
+      },
+      "ue_80": {
+        "cbrReceivedThroughput": {
+          "mean": 2228.2952898550725,
+          "std": 2313.5027216681356
+        }
+      }
+    },
+    "rb_8": {
+      "ue_5": {
+        "cbrReceivedThroughput": {
+          "mean": 4999.014492753624,
+          "std": 6.636979412351568
+        }
+      },
+      "ue_10": {
+        "cbrReceivedThroughput": {
+          "mean": 4996.260869565217,
+          "std": 25.49899038477139
+        }
+      },
+      "ue_15": {
+        "cbrReceivedThroughput": {
+          "mean": 4996.125603864734,
+          "std": 17.58966521883151
+        }
+      },
+      "ue_20": {
+        "cbrReceivedThroughput": {
+          "mean": 4995.72463768116,
+          "std": 20.001973316814134
+        }
+      },
+      "ue_25": {
+        "cbrReceivedThroughput": {
+          "mean": 4990.828985507247,
+          "std": 39.16952358714242
+        }
+      },
+      "ue_30": {
+        "cbrReceivedThroughput": {
+          "mean": 4990.014492753623,
+          "std": 42.13022005602891
+        }
+      },
+      "ue_35": {
+        "cbrReceivedThroughput": {
+          "mean": 4988.567287784679,
+          "std": 44.45376422890393
+        }
+      },
+      "ue_40": {
+        "cbrReceivedThroughput": {
+          "mean": 4988.880434782609,
+          "std": 49.78556560561883
+        }
+      },
+      "ue_45": {
+        "cbrReceivedThroughput": {
+          "mean": 4082.3346508563895,
+          "std": 1925.6372021759523
+        }
+      },
+      "ue_50": {
+        "cbrReceivedThroughput": {
+          "mean": 3556.4161490683236,
+          "std": 2250.9830980825086
+        }
+      },
+      "ue_55": {
+        "cbrReceivedThroughput": {
+          "mean": 3214.1364023870415,
+          "std": 2376.469077061902
+        }
+      },
+      "ue_60": {
+        "cbrReceivedThroughput": {
+          "mean": 2951.9434782608696,
+          "std": 2418.532293376332
+        }
+      },
+      "ue_65": {
+        "cbrReceivedThroughput": {
+          "mean": 2757.245116572149,
+          "std": 2431.520718498165
+        }
+      },
+      "ue_70": {
+        "cbrReceivedThroughput": {
+          "mean": 2584.442586399108,
+          "std": 2418.922366006229
+        }
+      },
+      "ue_75": {
+        "cbrReceivedThroughput": {
+          "mean": 2452.0389805097448,
+          "std": 2405.227927425975
+        }
+      },
+      "ue_80": {
+        "cbrReceivedThroughput": {
+          "mean": 2327.8487318840575,
+          "std": 2376.4246996273423
+        }
+      }
+    }
+  }
+}
