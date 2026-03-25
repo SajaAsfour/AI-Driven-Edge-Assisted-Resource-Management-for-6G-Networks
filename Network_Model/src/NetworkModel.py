@@ -75,6 +75,7 @@ class DTIResult:
     dti_index: int
     cdf_result: CDFResult
     beta_result: BetaResult
+    reward_current: float
 
 
 @dataclass
@@ -374,8 +375,49 @@ class NetworkModel:
         )
 
     # COMBINED DTI PROCESSING (CDF + BETA)
+
+    def compute_reward_current(
+        self,
+        beta_current: Number,
+        c_capacity: Number,
+        rb_used: Number,
+        lambda_reward: Number
+    ) -> float:
+        """Compute immediate reward for current DTI with input validation."""
+        numeric_inputs = {
+            "beta_current": beta_current,
+            "c_capacity": c_capacity,
+            "rb_used": rb_used,
+            "lambda_reward": lambda_reward,
+        }
+        for name, value in numeric_inputs.items():
+            if not isinstance(value, (int, float)):
+                raise ValueError(f"{name} must be numeric, got {type(value).__name__}")
+            if not np.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+
+        c_val = float(c_capacity)
+        rb_val = float(rb_used)
+        beta_val = float(beta_current)
+        lambda_val = float(lambda_reward)
+
+        if c_val <= 0:
+            raise ValueError(f"c_capacity must be > 0, got {c_val}")
+        if rb_val < 0:
+            raise ValueError(f"rb_used must be >= 0, got {rb_val}")
+        if rb_val > c_val:
+            raise ValueError(f"rb_used ({rb_val}) must be <= c_capacity ({c_val})")
+
+        return -beta_val + lambda_val * ((c_val - rb_val) / c_val)
     
-    def process_dti(self, traffic_data: List[int], rb_data: List[int]) -> DTIResult:
+    def process_dti(
+        self,
+        traffic_data: List[int],
+        rb_data: List[int],
+        c_capacity: Number,
+        rb_used: Number,
+        lambda_reward: Number,
+    ) -> DTIResult:
         """
         Process ONE DTI: compute both CDF and Beta.
         Returns structured result.  
@@ -387,12 +429,19 @@ class NetworkModel:
         
         cdf_result = self.compute_cdf(traffic_data, rb_data)
         beta_result = self.compute_beta(traffic_data, rb_data)
+        reward_current = self.compute_reward_current(
+            beta_result.beta_current,
+            c_capacity,
+            rb_used,
+            lambda_reward,
+        )
         
         return DTIResult(
             service=service,
             dti_index=cdf_result.dti_index,
             cdf_result=cdf_result,
-            beta_result=beta_result
+            beta_result=beta_result,
+            reward_current=reward_current,
         )
     
     def to_dict(self, dti_result: DTIResult) -> Dict[str, Any]:
@@ -406,6 +455,7 @@ class NetworkModel:
         return {
             'service': dti_result.service,
             'dti_index': dti_result.dti_index,
+            'reward_current': dti_result.reward_current,
             'cdf': {
                 'traffic_array': cdf.traffic_array,
                 'cdf_values': {

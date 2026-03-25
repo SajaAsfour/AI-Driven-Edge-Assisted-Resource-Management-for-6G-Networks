@@ -13,8 +13,7 @@ NETWORK_MODEL_DIR = BASE_DIR / "Network_Model"
 if str(NETWORK_MODEL_DIR) not in sys.path:
     sys.path.insert(0, str(NETWORK_MODEL_DIR))
 
-from src.NetworkModel import NetworkModel
-
+from Network_Model.src.NetworkModel import NetworkModel
 Number = Union[int, float]
 
 
@@ -44,6 +43,15 @@ def require_int(name: str, value: Any) -> int:
     if not isinstance(value, int):
         raise ValueError(f"{name} must be int, got {type(value).__name__}: {value!r}")
     return value
+
+
+def require_number(name: str, value: Any) -> float:
+    if not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be numeric, got {type(value).__name__}: {value!r}")
+    out = float(value)
+    if not np.isfinite(out):
+        raise ValueError(f"{name} must be finite, got {value!r}")
+    return out
 
 
 def require_list(name: str, value: Any) -> list:
@@ -171,6 +179,7 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
     m = require_int("m", config_data.get("m"))
     k = require_int("k", config_data.get("k"))
     c = require_int("c", config_data.get("c"))
+    lambda_reward = require_number("lambda_reward", config_data.get("lambda_reward"))
     
     if n <= 0 or m <= 0 or k <= 0:
         raise ValueError("n, m, k must be positive integers")
@@ -202,7 +211,7 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
     streaming_users = validate_users_matrix("streaming", users.get("streaming"), m=m, n=n)
 
     return {
-        'n': n, 'm': m, 'k': k, 'c': c,
+        'n': n, 'm': m, 'k': k, 'c': c, 'lambda_reward': lambda_reward,
         'traffic_elements': traffic_elements,
         'q_thresholds_voip': q_voip,
         'q_thresholds_cbr': q_cbr,
@@ -302,7 +311,7 @@ def get_user_choice() -> str:
 # DTI LOGGING
 
 def log_dti_result(logger: logging.Logger, service: str, dti_index: int, 
-                   cdf_result, beta_result, traffic_dti, rb_dti):
+                   cdf_result, beta_result, reward_current, traffic_dti, rb_dti):
     """Log a single DTI result to file in the required format."""
     logger.info(f"Service: {service}")
     logger.info(f"DTI Index: {dti_index}")
@@ -314,6 +323,7 @@ def log_dti_result(logger: logging.Logger, service: str, dti_index: int,
         logger.info(f"  Traffic {int(traffic_val)}: {float(cdf_prob):.4f}")
     
     logger.info(f"Beta Value: {beta_result.beta_cumulative:.4f}")
+    logger.info(f"Reward (Current DTI): {reward_current:.4f}")
     logger.info("-" * 24)
     logger.info("")
 
@@ -369,6 +379,12 @@ if __name__ == "__main__":
         'cbr': 'CBR',
         'streaming': 'Video Streaming'
     }
+
+    service_rb_index = {
+        'voip': 0,
+        'cbr': 1,
+        'streaming': 2,
+    }
     
     while True:
         display_menu()
@@ -412,9 +428,17 @@ if __name__ == "__main__":
             
             model.set_traffic(traffic_dti)
             model.set_resource_blocks(rb_dti)
+
+            rb_used_current = config['resource_blocks_per_dti'][dti][service_rb_index[service]]
             
             try:
-                dti_result = model.process_dti(traffic_dti, rb_dti)
+                dti_result = model.process_dti(
+                    traffic_dti,
+                    rb_dti,
+                    c_capacity=config['c'],
+                    rb_used=rb_used_current,
+                    lambda_reward=config['lambda_reward'],
+                )
             except ValueError as e:
                 print(f"\n[ERROR] DTI {dti + 1}: {e}")
                 print(f"Skipping to next DTI...\n")
@@ -441,6 +465,15 @@ if __name__ == "__main__":
             print(f"  Total Users (Current DTI): {beta.dti_total_traffic}")
             print(f"  Cumulative Failures:     {beta.cumulative_failures}")
             print(f"  Cumulative Users:        {beta.cumulative_traffic}")
+            resource_term = config['lambda_reward'] * ((config['c'] - rb_used_current) / config['c'])
+            print("\nREWARD COMPUTATION (Current DTI):")
+            print("  reward_current = -beta_current + lambda_reward * ((C - rb_used) / C)")
+            print(
+                f"  reward_current = -{beta.beta_current:.4f} + "
+                f"{config['lambda_reward']:.4f} * (({config['c']} - {rb_used_current}) / {config['c']})"
+            )
+            print(f"  resource_term = {resource_term:.4f}")
+            print(f"  Reward (Current DTI):    {dti_result.reward_current:.4f}")
             print("="*60 + "\n")
             log_dti_result(
                 logger, 
@@ -448,6 +481,7 @@ if __name__ == "__main__":
                 dti, 
                 dti_result.cdf_result, 
                 dti_result.beta_result,
+                dti_result.reward_current,
                 traffic_dti,
                 rb_dti
             )
