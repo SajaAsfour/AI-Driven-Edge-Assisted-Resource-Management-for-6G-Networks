@@ -1,0 +1,300 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple, Union
+import sys
+
+import numpy as np
+
+
+# Make project root importable when this file is used directly.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+	sys.path.insert(0, str(PROJECT_ROOT))
+
+from main import load_configuration, load_metric_matrices
+from Network_Model.src.NetworkModel import NetworkModel
+
+
+Number = Union[int, float]
+
+
+class NetworkSACEnv:
+	"""
+	Minimal Gym-like wrapper for the existing `NetworkModel`.
+
+	This wrapper is intentionally lightweight:
+	- no dependency on OpenAI Gym
+	- one service at a time (`voip`, `cbr`, or `streaming`)
+	- single continuous SAC action mapped to an integer RB allocation
+
+	Notes on integration with current simulation:
+	- Traffic demand per DTI comes from existing input files.
+	- The wrapper does NOT re-implement network logic.
+	  It calls `NetworkModel.process_dti(...)` and uses the returned reward.
+	- The action controls RB allocation for the selected service in current DTI,
+	  replicated across TTIs in that DTI (same pattern your current code uses).
+	"""
+
+	SERVICE_FILE_NAMES: Dict[str, str] = {
+		"voip": "D2min_VoIP_summary.json",
+		"cbr": "D30sec_CBR_summary.json",
+		"streaming": "D90sec_VideoStream_summary.json",
+	}
+
+	SERVICE_ALIASES: Dict[str, str] = {
+		"voip": "voip",
+		"cbr": "cbr",
+		"streaming": "streaming",
+		"videostream": "streaming",
+		"video_stream": "streaming",
+		"video-stream": "streaming",
+	}
+
+	def __init__(
+		self,
+		service: str = "voip",
+		config_path: Optional[Union[str, Path]] = None,
+		input_path: Optional[Union[str, Path]] = None,
+		metric_file: Optional[Union[str, Path]] = None,
+		action_low: float = -1.0,
+		action_high: float = 1.0,
+		rb_min: int = 0,
+		rb_max: Optional[int] = None,
+		seed: Optional[int] = None,
+	) -> None:
+		"""
+		Initialize the RL wrapper.
+
+		Args:
+			service: Target service (`voip`, `cbr`, `streaming`, `videostream`).
+			config_path: Optional path to network config JSON.
+			input_path: Optional path to network input JSON.
+			metric_file: Optional path to per-service metric summary JSON.
+			action_low: Minimum SAC action value before mapping.
+			action_high: Maximum SAC action value before mapping.
+			rb_min: Minimum RB decision for one DTI.
+			rb_max: Maximum RB decision for one DTI. Defaults to config `c`.
+			seed: Optional numpy RNG seed.
+		"""
+		if seed is not None:
+			np.random.seed(seed)
+
+		self.service: str = self._normalize_service(service)
+
+		config_dir = PROJECT_ROOT / "Network_Model" / "data" / "configuration"
+		input_dir = PROJECT_ROOT / "Network_Model" / "data" / "input"
+
+		cfg_path = Path(config_path) if config_path is not None else config_dir / "network_config.json"
+		inp_path = Path(input_path) if input_path is not None else input_dir / "network_input.json"
+
+		self.config: Dict[str, Any] = load_configuration(cfg_path, inp_path)
+
+		self.n: int = int(self.config["n"])
+		self.m: int = int(self.config["m"])
+		self.k: int = int(self.config["k"])
+		self.c: float = float(self.config["c"])
+		self.lambda_reward: float = float(self.config["lambda_reward"])
+
+		self.action_low = float(action_low)
+		self.action_high = float(action_high)
+		if not np.isfinite(self.action_low) or not np.isfinite(self.action_high):
+			raise ValueError("action_low and action_high must be finite")
+		if self.action_high <= self.action_low:
+			raise ValueError("action_high must be greater than action_low")
+
+		self.rb_min = int(rb_min)
+		if self.rb_min < 0:
+			raise ValueError("rb_min must be >= 0")
+
+		default_rb_max = int(self.c)
+		self.rb_max = int(default_rb_max if rb_max is None else rb_max)
+		if self.rb_max < self.rb_min:
+			raise ValueError("rb_max must be >= rb_min")
+
+		self.model = NetworkModel(
+			n=self.n,
+			m=self.m,
+			k=self.k,
+			traffic_elements=self.config["traffic_elements"],
+			q_thresholds_voip=self.config["q_thresholds_voip"],
+			q_thresholds_cbr=self.config["q_thresholds_cbr"],
+			q_thresholds_streaming=self.config["q_thresholds_streaming"],
+		)
+
+		metric_path = (
+			Path(metric_file)
+			if metric_file is not None
+			else config_dir / self.SERVICE_FILE_NAMES[self.service]
+		)
+		metric_data = load_metric_matrices(self.service, metric_path)
+		self.model.set_metric_matrices(self.service, metric_data)
+		self.model.set_service(self.service)
+
+		self._traffic_by_dti = self.config["traffic_users_per_tti"][self.service]
+
+		self._dti_cursor: int = 0
+		self._done: bool = False
+		self._last_beta_current: float = 0.0
+		self._last_reward: float = 0.0
+		self._last_cdf_y: np.ndarray = np.zeros(self.k, dtype=np.float32)
+
+	def reset(self) -> np.ndarray:
+		"""
+		Reset episode state and return initial flat state vector.
+
+		Returns:
+			Flat NumPy vector suitable as neural-network input.
+		"""
+		self.model.set_service(self.service)
+		self.model.reset(self.service)
+
+		self._dti_cursor = 0
+		self._done = False
+		self._last_beta_current = 0.0
+		self._last_reward = 0.0
+		self._last_cdf_y = np.zeros(self.k, dtype=np.float32)
+		return self.get_state()
+
+	def step(self, action: Union[Number, np.ndarray, list, tuple]) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
+		"""
+		Execute one DTI transition.
+
+		Args:
+			action: Continuous SAC action. It is mapped to integer RB allocation.
+
+		Returns:
+			next_state: Flat NumPy state vector.
+			reward: Immediate reward for current DTI.
+			done: Episode completion flag.
+			info: Extra diagnostics (beta values, chosen RB, indices).
+		"""
+		if self._done:
+			raise RuntimeError("Episode is done. Call reset() before step().")
+
+		traffic_dti = self._traffic_by_dti[self._dti_cursor]
+		rb_alloc = self._action_to_rb(action)
+		rb_data = [rb_alloc] * self.n
+
+		self.model.set_traffic(traffic_dti)
+		self.model.set_resource_blocks(rb_data)
+
+		dti_result = self.model.process_dti(
+			traffic_data=traffic_dti,
+			rb_data=rb_data,
+			c_capacity=self.c,
+			rb_used=rb_alloc,
+			lambda_reward=self.lambda_reward,
+		)
+
+		(beta_current, cdf_matrix), reward_current = self.model.to_rl_input(dti_result)
+		self._last_beta_current = float(beta_current)
+		self._last_reward = float(reward_current)
+		self._last_cdf_y = np.asarray(cdf_matrix[:, 1], dtype=np.float32)
+
+		self._dti_cursor += 1
+		self._done = self._dti_cursor >= self.m
+
+		next_state = self.get_state()
+		info = {
+			"service": self.service,
+			"dti_index": int(dti_result.dti_index),
+			"cursor": int(self._dti_cursor),
+			"rb_alloc": int(rb_alloc),
+			"beta_current": float(dti_result.beta_result.beta_current),
+			"beta_cumulative": float(dti_result.beta_result.beta_cumulative),
+			"reward_current": float(dti_result.reward_current),
+		}
+		return next_state, float(dti_result.reward_current), self._done, info
+
+	def get_state(self) -> np.ndarray:
+		"""
+		Build a flat state vector from current wrapper/model status.
+
+		State layout:
+			[progress,
+			 mean_traffic_norm,
+			 std_traffic_norm,
+			 last_beta_current,
+			 last_reward,
+			 cdf_y[0], ..., cdf_y[k-1]]
+
+		Returns:
+			1D float32 NumPy array.
+		"""
+		if self._dti_cursor < self.m:
+			traffic_now = np.asarray(self._traffic_by_dti[self._dti_cursor], dtype=np.float32)
+		else:
+			traffic_now = np.asarray(self._traffic_by_dti[-1], dtype=np.float32)
+
+		max_traffic_element = float(max(self.config["traffic_elements"]))
+		norm = max(max_traffic_element, 1.0)
+
+		progress = float(self._dti_cursor) / float(max(self.m, 1))
+		mean_traffic_norm = float(np.mean(traffic_now) / norm)
+		std_traffic_norm = float(np.std(traffic_now) / norm)
+
+		state = np.concatenate(
+			[
+				np.array(
+					[
+						progress,
+						mean_traffic_norm,
+						std_traffic_norm,
+						float(self._last_beta_current),
+						float(self._last_reward),
+					],
+					dtype=np.float32,
+				),
+				self._last_cdf_y.astype(np.float32, copy=False),
+			]
+		)
+		return state
+
+	def _action_to_rb(self, action: Union[Number, np.ndarray, list, tuple]) -> int:
+		"""
+		Convert a SAC continuous action to a valid integer RB allocation.
+
+		Mapping:
+			1) extract scalar action value
+			2) clip into [action_low, action_high]
+			3) linearly map into [rb_min, rb_max]
+			4) round and clamp to integer bounds
+		"""
+		value = self._action_to_scalar(action)
+		clipped = float(np.clip(value, self.action_low, self.action_high))
+
+		ratio = (clipped - self.action_low) / (self.action_high - self.action_low)
+		rb_float = self.rb_min + ratio * (self.rb_max - self.rb_min)
+		rb_int = int(np.round(rb_float))
+		rb_int = int(np.clip(rb_int, self.rb_min, self.rb_max))
+		return rb_int
+
+	@staticmethod
+	def _action_to_scalar(action: Union[Number, np.ndarray, list, tuple]) -> float:
+		"""Extract a finite scalar value from action input."""
+		if isinstance(action, (int, float, np.floating, np.integer)):
+			value = float(action)
+		elif isinstance(action, (list, tuple, np.ndarray)):
+			arr = np.asarray(action, dtype=np.float32).reshape(-1)
+			if arr.size == 0:
+				raise ValueError("action cannot be empty")
+			value = float(arr[0])
+		else:
+			raise ValueError(f"Unsupported action type: {type(action).__name__}")
+
+		if not np.isfinite(value):
+			raise ValueError(f"action must be finite, got {value}")
+		return value
+
+	@classmethod
+	def _normalize_service(cls, service: str) -> str:
+		"""Normalize service alias to one of: voip, cbr, streaming."""
+		if not isinstance(service, str):
+			raise ValueError("service must be a string")
+		key = service.strip().lower()
+		if key not in cls.SERVICE_ALIASES:
+			raise ValueError(
+				"service must be one of: voip, cbr, streaming, videostream"
+			)
+		return cls.SERVICE_ALIASES[key]
