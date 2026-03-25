@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Union, Optional
+from typing import Any, Dict, List, Union, Optional, Tuple
 import numpy as np
 
 Number = Union[int, float]
@@ -443,6 +443,46 @@ class NetworkModel:
             beta_result=beta_result,
             reward_current=reward_current,
         )
+
+    def to_rl_input(self, dti_result: DTIResult) -> Tuple[Tuple[float, np.ndarray], float]:
+        """
+        Convert one current-DTI result into RL-friendly format.
+
+        Returns:
+            state = (beta_current, cdf_matrix)
+            result = (state, reward_current)
+
+        Where cdf_matrix is a 2-column matrix:
+            [traffic_level, cdf_probability]
+        """
+        beta_current = float(dti_result.beta_result.beta_current)
+        cdf_matrix = np.column_stack((dti_result.cdf_result.cdf_x, dti_result.cdf_result.cdf_y))
+        reward_current = float(dti_result.reward_current)
+        state = (beta_current, cdf_matrix)
+        return state, reward_current
+
+    def process_dti_rl(
+        self,
+        traffic_data: List[int],
+        rb_data: List[int],
+        c_capacity: Number,
+        rb_used: Number,
+        lambda_reward: Number,
+    ) -> Tuple[Tuple[float, np.ndarray], float]:
+        """
+        Process ONE DTI for ONE selected service and return:
+            result = (state, reward_current)
+        with:
+            state = (beta_current, cdf_matrix)
+        """
+        dti_result = self.process_dti(
+            traffic_data=traffic_data,
+            rb_data=rb_data,
+            c_capacity=c_capacity,
+            rb_used=rb_used,
+            lambda_reward=lambda_reward,
+        )
+        return self.to_rl_input(dti_result)
     
     def to_dict(self, dti_result: DTIResult) -> Dict[str, Any]:
         """

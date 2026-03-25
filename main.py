@@ -311,7 +311,8 @@ def get_user_choice() -> str:
 # DTI LOGGING
 
 def log_dti_result(logger: logging.Logger, service: str, dti_index: int, 
-                   cdf_result, beta_result, reward_current, traffic_dti, rb_dti):
+                   cdf_result, beta_result, reward_current, traffic_dti, rb_dti,
+                   c_capacity: Number, rb_used_current: Number, lambda_reward: Number):
     """Log a single DTI result to file in the required format."""
     logger.info(f"Service: {service}")
     logger.info(f"DTI Index: {dti_index}")
@@ -321,7 +322,34 @@ def log_dti_result(logger: logging.Logger, service: str, dti_index: int,
     logger.info("CDF Values:")
     for traffic_val, cdf_prob in zip(cdf_result.cdf_x, cdf_result.cdf_y):
         logger.info(f"  Traffic {int(traffic_val)}: {float(cdf_prob):.4f}")
-    
+
+    cdf_matrix = np.column_stack((cdf_result.cdf_x, cdf_result.cdf_y))
+    state = (float(beta_result.beta_current), cdf_matrix)
+    result = (state, float(reward_current))
+
+    logger.info("")
+    logger.info("RL STRUCTURED OUTPUT (Current DTI):")
+    logger.info("  state = (beta_current, CDF_matrix)")
+    logger.info(
+        f"  beta_current = dti_total_failures / dti_total_traffic = "
+        f"{beta_result.dti_total_failures}/{beta_result.dti_total_traffic} = {beta_result.beta_current:.6f}"
+    )
+    logger.info("  CDF_matrix = [traffic_level, cdf_probability]")
+    for row in cdf_matrix:
+        logger.info(f"    [{int(row[0])}, {float(row[1]):.6f}]")
+
+    resource_term = float(lambda_reward) * ((float(c_capacity) - float(rb_used_current)) / float(c_capacity))
+    logger.info(
+        f"  reward_current = -beta_current + lambda_reward * ((C - rb_used_current) / C)"
+    )
+    logger.info(
+        f"  reward_current = -{beta_result.beta_current:.6f} + {float(lambda_reward):.6f} * "
+        f"(({float(c_capacity):.6f} - {float(rb_used_current):.6f}) / {float(c_capacity):.6f})"
+    )
+    logger.info(f"  resource_term = {resource_term:.6f}")
+    logger.info(f"  result = (state, reward_current)")
+    logger.info(f"  result.reward_current = {float(result[1]):.6f}")
+
     logger.info(f"Beta Value: {beta_result.beta_cumulative:.4f}")
     logger.info(f"Reward (Current DTI): {reward_current:.4f}")
     logger.info("-" * 24)
@@ -443,6 +471,10 @@ if __name__ == "__main__":
                 print(f"\n[ERROR] DTI {dti + 1}: {e}")
                 print(f"Skipping to next DTI...\n")
                 continue
+
+            state, reward_current = model.to_rl_input(dti_result)
+            beta_current, cdf_matrix = state
+            result = (state, reward_current)
  
             cdf = dti_result.cdf_result
             beta = dti_result.beta_result
@@ -474,6 +506,11 @@ if __name__ == "__main__":
             )
             print(f"  resource_term = {resource_term:.4f}")
             print(f"  Reward (Current DTI):    {dti_result.reward_current:.4f}")
+            print("\nRL INPUT FORMAT (Current DTI):")
+            print("  state = (beta_current, CDF_matrix)")
+            print(f"  beta_current = {beta_current:.4f}")
+            print(f"  CDF_matrix shape = {cdf_matrix.shape}")
+            print(f"  result = (state, reward_current) -> reward_current = {reward_current:.4f}")
             print("="*60 + "\n")
             log_dti_result(
                 logger, 
@@ -483,7 +520,10 @@ if __name__ == "__main__":
                 dti_result.beta_result,
                 dti_result.reward_current,
                 traffic_dti,
-                rb_dti
+                rb_dti,
+                c_capacity=config['c'],
+                rb_used_current=rb_used_current,
+                lambda_reward=config['lambda_reward']
             )
             
             
