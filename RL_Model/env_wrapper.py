@@ -136,7 +136,9 @@ class NetworkSACEnv:
 		self._dti_cursor: int = 0
 		self._done: bool = False
 		self._last_beta_current: float = 0.0
+		self._last_beta_cumulative: float = 0.0
 		self._last_reward: float = 0.0
+		self._last_rb_norm: float = 0.0
 		self._last_cdf_y: np.ndarray = np.zeros(self.k, dtype=np.float32)
 
 	def reset(self) -> np.ndarray:
@@ -152,7 +154,9 @@ class NetworkSACEnv:
 		self._dti_cursor = 0
 		self._done = False
 		self._last_beta_current = 0.0
+		self._last_beta_cumulative = 0.0
 		self._last_reward = 0.0
+		self._last_rb_norm = 0.0
 		self._last_cdf_y = np.zeros(self.k, dtype=np.float32)
 		return self.get_state()
 
@@ -189,7 +193,9 @@ class NetworkSACEnv:
 
 		(beta_current, cdf_matrix), reward_current = self.model.to_rl_input(dti_result)
 		self._last_beta_current = float(beta_current)
+		self._last_beta_cumulative = float(dti_result.beta_result.beta_cumulative)
 		self._last_reward = float(reward_current)
+		self._last_rb_norm = self._normalize_rb(rb_alloc)
 		self._last_cdf_y = np.asarray(cdf_matrix[:, 1], dtype=np.float32)
 
 		self._dti_cursor += 1
@@ -216,7 +222,8 @@ class NetworkSACEnv:
 			 mean_traffic_norm,
 			 std_traffic_norm,
 			 last_beta_current,
-			 last_reward,
+			 last_beta_cumulative,
+			 last_rb_norm,
 			 cdf_y[0], ..., cdf_y[k-1]]
 
 		Returns:
@@ -231,8 +238,8 @@ class NetworkSACEnv:
 		norm = max(max_traffic_element, 1.0)
 
 		progress = float(self._dti_cursor) / float(max(self.m, 1))
-		mean_traffic_norm = float(np.mean(traffic_now) / norm)
-		std_traffic_norm = float(np.std(traffic_now) / norm)
+		mean_traffic_norm = float(np.clip(np.mean(traffic_now) / norm, 0.0, 1.0))
+		std_traffic_norm = float(np.clip(np.std(traffic_now) / norm, 0.0, 1.0))
 
 		state = np.concatenate(
 			[
@@ -241,15 +248,38 @@ class NetworkSACEnv:
 						progress,
 						mean_traffic_norm,
 						std_traffic_norm,
-						float(self._last_beta_current),
-						float(self._last_reward),
+						float(np.clip(self._last_beta_current, 0.0, 1.0)),
+						float(np.clip(self._last_beta_cumulative, 0.0, 1.0)),
+						float(np.clip(self._last_rb_norm, 0.0, 1.0)),
 					],
 					dtype=np.float32,
 				),
-				self._last_cdf_y.astype(np.float32, copy=False),
+				np.clip(self._last_cdf_y.astype(np.float32, copy=False), 0.0, 1.0),
 			]
 		)
+		if not np.all(np.isfinite(state)):
+			raise ValueError("state contains non-finite values")
 		return state
+
+	@property
+	def observation_shape(self) -> Tuple[int]:
+		"""Return observation shape for network input layer construction."""
+		return (6 + self.k,)
+
+	@property
+	def action_shape(self) -> Tuple[int]:
+		"""Return action shape expected by SAC actor."""
+		return (1,)
+
+	@property
+	def action_bounds(self) -> Tuple[float, float]:
+		"""Return external action bounds accepted by this environment."""
+		return (self.action_low, self.action_high)
+
+	def _normalize_rb(self, rb: int) -> float:
+		"""Normalize integer RB allocation into [0, 1]."""
+		span = float(max(self.rb_max - self.rb_min, 1))
+		return float(np.clip((float(rb) - self.rb_min) / span, 0.0, 1.0))
 
 	def _action_to_rb(self, action: Union[Number, np.ndarray, list, tuple]) -> int:
 		"""
@@ -257,18 +287,24 @@ class NetworkSACEnv:
 
 		Mapping:
 			1) extract scalar action value
-			2) clip into [action_low, action_high]
+			2) normalize into [-1, 1]
 			3) linearly map into [rb_min, rb_max]
 			4) round and clamp to integer bounds
 		"""
 		value = self._action_to_scalar(action)
-		clipped = float(np.clip(value, self.action_low, self.action_high))
-
-		ratio = (clipped - self.action_low) / (self.action_high - self.action_low)
+		a_norm = self._normalize_action_value(value)
+		ratio = 0.5 * (a_norm + 1.0)
 		rb_float = self.rb_min + ratio * (self.rb_max - self.rb_min)
 		rb_int = int(np.round(rb_float))
 		rb_int = int(np.clip(rb_int, self.rb_min, self.rb_max))
 		return rb_int
+
+	def _normalize_action_value(self, action_scalar: float) -> float:
+		"""Normalize action from [action_low, action_high] into [-1, 1] with clipping."""
+		clipped = float(np.clip(action_scalar, self.action_low, self.action_high))
+		ratio = (clipped - self.action_low) / (self.action_high - self.action_low)
+		a_norm = (2.0 * ratio) - 1.0
+		return float(np.clip(a_norm, -1.0, 1.0))
 
 	@staticmethod
 	def _action_to_scalar(action: Union[Number, np.ndarray, list, tuple]) -> float:
