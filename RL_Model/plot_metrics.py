@@ -133,6 +133,10 @@ def plot_training_metrics(
 		service_name = "run"
 
 	generated: List[Path] = []
+	found_metrics: List[str] = []
+	skipped_metrics: List[str] = []
+
+	# New SAC metric keys only.
 	metric_specs = [
 		("actor_loss", "Actor Loss", "Loss", f"sac_{service_name}_actor_loss.png"),
 		("critic1_loss", "Critic 1 Loss", "Loss", f"sac_{service_name}_critic1_loss.png"),
@@ -145,10 +149,19 @@ def plot_training_metrics(
 
 	for metric_key, title, y_label, filename in metric_specs:
 		x, y = _safe_series(metrics.get(metric_key, []))
+		if x.size == 0 or y.size == 0:
+			skipped_metrics.append(metric_key)
+			continue
+
 		save_path = out_dir / filename
 		_plot_single_curve(x, y, title, "Episode", y_label, save_path, show)
-		if save_path.exists():
-			generated.append(save_path)
+		found_metrics.append(metric_key)
+		generated.append(save_path)
+
+	# Optional diagnostics: useful when metric keys changed or values are empty/NaN.
+	print(f"plot_training_metrics: found={found_metrics}")
+	if skipped_metrics:
+		print(f"plot_training_metrics: skipped={skipped_metrics}")
 
 	return generated
 
