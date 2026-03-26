@@ -609,6 +609,7 @@ def run_sac_training_mode() -> None:
 def run_sac_evaluation_mode() -> None:
     """Run deterministic evaluation for a trained SAC model."""
     try:
+        from RL_Model.trainer import load_config
         from RL_Model.env_wrapper import NetworkSACEnv
         from RL_Model.agent import SACAgent
     except Exception as e:
@@ -628,7 +629,28 @@ def run_sac_evaluation_mode() -> None:
         return
 
     try:
-        env = NetworkSACEnv(service=service, seed=42)
+        env_service = service
+        env_seed = 42
+        env_rb_min = None
+
+        config_path = ckpt_path.with_name(f"{ckpt_path.stem}_config.json")
+        if config_path.exists():
+            loaded_config = load_config(config_path)
+            env_cfg = loaded_config.get("environment", {})
+            if isinstance(env_cfg, dict):
+                env_service = env_cfg.get("service", env_service)
+                env_seed = env_cfg.get("seed", env_seed)
+                env_rb_min = env_cfg.get("rb_min", env_rb_min)
+            print(f"Loaded config from checkpoint: {config_path}")
+
+        env_kwargs = {
+            "service": env_service,
+            "seed": env_seed,
+        }
+        if env_rb_min is not None:
+            env_kwargs["rb_min"] = env_rb_min
+
+        env = NetworkSACEnv(**env_kwargs)
         state_dim = int(np.prod(env.observation_shape))
         action_dim = int(np.prod(env.action_shape))
 

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import math
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, TYPE_CHECKING, Union
 
@@ -10,6 +13,60 @@ if TYPE_CHECKING:
 	from .config import SACConfig
 	from .env_wrapper import NetworkSACEnv
 	from .replay_buffer import ReplayBuffer
+
+
+def _to_json_safe(value: Any) -> Any:
+	"""Convert values to JSON-safe structures recursively."""
+	if isinstance(value, np.generic):
+		value = value.item()
+	if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+		return None
+	if is_dataclass(value):
+		return _to_json_safe(asdict(value))
+	if isinstance(value, dict):
+		return {str(k): _to_json_safe(v) for k, v in value.items()}
+	if isinstance(value, (list, tuple)):
+		return [_to_json_safe(v) for v in value]
+	if isinstance(value, Path):
+		return str(value)
+	return value
+
+
+def save_config(config: Any, path: Union[str, Path]) -> Path:
+	"""Save training configuration as JSON next to checkpoints."""
+	config_path = Path(path)
+	config_path.parent.mkdir(parents=True, exist_ok=True)
+
+	config_dict = _to_json_safe(config)
+	with config_path.open("w", encoding="utf-8") as f:
+		json.dump(config_dict, f, indent=2, ensure_ascii=False)
+
+	return config_path
+
+
+def load_config(path: Union[str, Path]) -> Dict[str, Any]:
+	"""Load a JSON config file and return it as a dictionary."""
+	config_path = Path(path)
+	with config_path.open("r", encoding="utf-8") as f:
+		loaded = json.load(f)
+
+	if not isinstance(loaded, dict):
+		raise ValueError(f"Config JSON must be an object at top-level: {config_path}")
+	return loaded
+
+
+def save_training_metrics(history: Dict[str, Any], path: Union[str, Path]) -> Path:
+	"""Save training history metrics as JSON."""
+	metrics_path = Path(path)
+	metrics_path.parent.mkdir(parents=True, exist_ok=True)
+
+	history_dict = _to_json_safe(history)
+	with metrics_path.open("w", encoding="utf-8") as f:
+		json.dump(history_dict, f, indent=2, ensure_ascii=False)
+
+	return metrics_path
+
+
 def _import_rl_components() -> tuple[Any, Any, Any]:
 	"""Import RL components lazily to avoid heavy imports at module load."""
 	try:
@@ -252,16 +309,23 @@ def train_sac(
 		if episode % save_interval == 0:
 			episode_ckpt = checkpoint_path / f"sac_{service}_episode_{episode:04d}.pt"
 			agent.save(episode_ckpt)
+			episode_cfg = episode_ckpt.with_name(f"{episode_ckpt.stem}_config.json")
+			save_config(config, episode_cfg)
 			saved_checkpoints.append(str(episode_ckpt))
 			if verbose:
 				print(f"  Saved checkpoint: {episode_ckpt}")
 
 	final_ckpt = checkpoint_path / f"sac_{service}_final.pt"
 	agent.save(final_ckpt)
+	final_cfg = final_ckpt.with_name(f"{final_ckpt.stem}_config.json")
+	save_config(config, final_cfg)
 	saved_checkpoints.append(str(final_ckpt))
 
 	if verbose:
 		print(f"Training complete. Final checkpoint: {final_ckpt}")
+
+	metrics_path = checkpoint_path / "training_metrics.json"
+	save_training_metrics(history, metrics_path)
 
 	return {
 		"agent": agent,
