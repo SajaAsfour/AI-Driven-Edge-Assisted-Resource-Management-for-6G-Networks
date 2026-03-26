@@ -54,8 +54,8 @@ class TrainingConfig:
 
 	max_episodes: int = 200
 	max_steps_per_episode: int = 128
-	batch_size: int = 64
-	warmup_steps: int = 1_000
+	batch_size: int = 16
+	warmup_steps: int = 300
 	verbose: bool = True
 
 
@@ -65,6 +65,8 @@ class EvaluationConfig:
 
 	evaluation_interval: int = 20
 	deterministic: bool = True
+	episodes: int = 5
+	max_steps_per_episode: int = 128
 
 
 @dataclass(slots=True)

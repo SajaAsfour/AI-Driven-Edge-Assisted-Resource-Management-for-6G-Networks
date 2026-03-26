@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
@@ -219,13 +220,30 @@ def train_sac(
 	checkpoint_path = Path(checkpoint_dir)
 	checkpoint_path.mkdir(parents=True, exist_ok=True)
 
+	# File-only training logger (no console handlers).
+	log_path = checkpoint_path / "training.log"
+	logger = logging.getLogger(f"sac_training_{service}")
+	logger.setLevel(logging.INFO)
+	logger.propagate = False
+	for h in list(logger.handlers):
+		logger.removeHandler(h)
+	file_handler = logging.FileHandler(log_path, mode="w", encoding="utf-8")
+	file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+	logger.addHandler(file_handler)
+
 	history: Dict[str, list] = {
 		"episode_rewards": [],
-		"actor_losses": [],
-		"critic_losses": [],
-		"alpha_values": [],
+		"actor_loss": [],
+		"critic1_loss": [],
+		"critic2_loss": [],
+		"critic_diff": [],
+		"q_value_loss": [],
+		"alpha": [],
+		"alpha_loss": [],
+		"entropy": [],
 		"evaluation_rewards": [],
 	}
+	history["service"] = service
 	saved_checkpoints: list[str] = []
 
 	total_steps = 0
@@ -235,8 +253,13 @@ def train_sac(
 		episode_reward = 0.0
 
 		episode_actor_losses: list[float] = []
-		episode_critic_losses: list[float] = []
+		episode_critic1_losses: list[float] = []
+		episode_critic2_losses: list[float] = []
+		episode_critic_diffs: list[float] = []
+		episode_q_value_losses: list[float] = []
 		episode_alpha_values: list[float] = []
+		episode_alpha_losses: list[float] = []
+		episode_entropy_values: list[float] = []
 
 		for _ in range(max_steps_per_episode):
 			if total_steps < warmup_steps:
@@ -255,44 +278,72 @@ def train_sac(
 
 			if len(replay_buffer) >= batch_size and total_steps >= warmup_steps:
 				update_info = agent.update(replay_buffer, batch_size)
-				episode_actor_losses.append(float(update_info["actor_loss"]))
-				critic_loss = 0.5 * (
-					float(update_info["critic1_loss"]) + float(update_info["critic2_loss"])
-				)
-				episode_critic_losses.append(critic_loss)
-				episode_alpha_values.append(float(update_info["alpha"]))
+
+				actor_loss = float(update_info.get("actor_loss", float("nan")))
+				critic1_loss = float(update_info.get("critic1_loss", float("nan")))
+				critic2_loss = float(update_info.get("critic2_loss", float("nan")))
+				critic_diff = abs(critic1_loss - critic2_loss)
+				q_value_loss = 0.5 * (critic1_loss + critic2_loss)
+				alpha_value = float(update_info.get("alpha", float("nan")))
+				alpha_loss = float(update_info.get("alpha_loss", float("nan")))
+
+				entropy_value: float
+				if "entropy" in update_info and update_info.get("entropy") is not None:
+					entropy_value = float(update_info["entropy"])
+				elif "log_prob_mean" in update_info and update_info.get("log_prob_mean") is not None:
+					entropy_value = -float(update_info["log_prob_mean"])
+				else:
+					entropy_value = float("nan")
+
+				episode_actor_losses.append(actor_loss)
+				episode_critic1_losses.append(critic1_loss)
+				episode_critic2_losses.append(critic2_loss)
+				episode_critic_diffs.append(critic_diff)
+				episode_q_value_losses.append(q_value_loss)
+				episode_alpha_values.append(alpha_value)
+				episode_alpha_losses.append(alpha_loss)
+				episode_entropy_values.append(entropy_value)
 
 			state = next_state
 			if done:
 				break
 
-		mean_actor_loss = (
-			float(np.mean(episode_actor_losses))
-			if episode_actor_losses
-			else float("nan")
-		)
-		mean_critic_loss = (
-			float(np.mean(episode_critic_losses))
-			if episode_critic_losses
-			else float("nan")
-		)
-		mean_alpha = (
-			float(np.mean(episode_alpha_values))
-			if episode_alpha_values
-			else float(agent.alpha.item())
-		)
+		def _nanmean_or_nan(values: list[float]) -> float:
+			if not values:
+				return float("nan")
+			arr = np.asarray(values, dtype=np.float64)
+			return float(np.nanmean(arr)) if np.isfinite(arr).any() else float("nan")
+
+		mean_actor_loss = _nanmean_or_nan(episode_actor_losses)
+		mean_critic1_loss = _nanmean_or_nan(episode_critic1_losses)
+		mean_critic2_loss = _nanmean_or_nan(episode_critic2_losses)
+		mean_critic_diff = _nanmean_or_nan(episode_critic_diffs)
+		mean_q_value_loss = _nanmean_or_nan(episode_q_value_losses)
+		mean_alpha = _nanmean_or_nan(episode_alpha_values)
+		if not np.isfinite(mean_alpha):
+			mean_alpha = float(agent.alpha.item())
+		mean_alpha_loss = _nanmean_or_nan(episode_alpha_losses)
+		mean_entropy = _nanmean_or_nan(episode_entropy_values)
 
 		history["episode_rewards"].append(float(episode_reward))
-		history["actor_losses"].append(mean_actor_loss)
-		history["critic_losses"].append(mean_critic_loss)
-		history["alpha_values"].append(mean_alpha)
+		history["actor_loss"].append(mean_actor_loss)
+		history["critic1_loss"].append(mean_critic1_loss)
+		history["critic2_loss"].append(mean_critic2_loss)
+		history["critic_diff"].append(mean_critic_diff)
+		history["q_value_loss"].append(mean_q_value_loss)
+		history["alpha"].append(mean_alpha)
+		history["alpha_loss"].append(mean_alpha_loss)
+		history["entropy"].append(mean_entropy)
 
 		if verbose:
-			print(
+			logger.info(
 				f"Episode {episode:04d} | "
 				f"Reward: {episode_reward:10.4f} | "
 				f"Actor Loss: {mean_actor_loss:10.6f} | "
-				f"Critic Loss: {mean_critic_loss:10.6f} | "
+				f"Critic1 Loss: {mean_critic1_loss:10.6f} | "
+				f"Critic2 Loss: {mean_critic2_loss:10.6f} | "
+				f"Q Loss: {mean_q_value_loss:10.6f} | "
+				f"Critic Diff: {mean_critic_diff:10.6f} | "
 				f"Alpha: {mean_alpha:8.5f}"
 			)
 
@@ -304,7 +355,7 @@ def train_sac(
 			)
 			history["evaluation_rewards"].append((episode, eval_reward))
 			if verbose:
-				print(f"  Evaluation @ episode {episode}: reward={eval_reward:.4f}")
+				logger.info(f"Evaluation @ episode {episode}: reward={eval_reward:.4f}")
 
 		if episode % save_interval == 0:
 			episode_ckpt = checkpoint_path / f"sac_{service}_episode_{episode:04d}.pt"
@@ -313,7 +364,7 @@ def train_sac(
 			save_config(config, episode_cfg)
 			saved_checkpoints.append(str(episode_ckpt))
 			if verbose:
-				print(f"  Saved checkpoint: {episode_ckpt}")
+				logger.info(f"Saved checkpoint: {episode_ckpt}")
 
 	final_ckpt = checkpoint_path / f"sac_{service}_final.pt"
 	agent.save(final_ckpt)
@@ -322,10 +373,37 @@ def train_sac(
 	saved_checkpoints.append(str(final_ckpt))
 
 	if verbose:
-		print(f"Training complete. Final checkpoint: {final_ckpt}")
+		logger.info(f"Training complete. Final checkpoint: {final_ckpt}")
 
 	metrics_path = checkpoint_path / "training_metrics.json"
 	save_training_metrics(history, metrics_path)
+
+	# Auto-generate training plots beside the saved metrics file.
+	# Plotting errors should never crash or invalidate training outputs.
+	try:
+		try:
+			from RL_Model.plot_metrics import plot_training_metrics
+		except ImportError:
+			from .plot_metrics import plot_training_metrics
+
+		generated_plots = plot_training_metrics(
+			metrics=history,
+			output_dir=checkpoint_path,
+			service=service,
+			show=False,
+		)
+		if verbose:
+			logger.info(
+				f"Saved training metrics: {metrics_path} | "
+				f"Generated plots: {len(generated_plots)}"
+			)
+	except Exception as plot_error:
+		logger.warning(f"Metrics plotting failed: {plot_error}")
+
+	for h in list(logger.handlers):
+		h.flush()
+		h.close()
+		logger.removeHandler(h)
 
 	return {
 		"agent": agent,

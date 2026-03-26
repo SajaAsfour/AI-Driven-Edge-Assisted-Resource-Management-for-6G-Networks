@@ -574,25 +574,15 @@ def run_sac_training_mode() -> None:
         print(f"ERROR: RL training modules could not be imported: {e}")
         return
 
+    # SAC settings are fully config-driven.
+    # The menu only selects mode + service; all hyperparameters come from config.py.
     service = choose_service_for_rl()
-    episodes = prompt_int_with_default("Max training episodes", 200, min_value=1)
-    steps = prompt_int_with_default("Max steps per episode", 128, min_value=1)
-    batch_size = prompt_int_with_default("Batch size", 64, min_value=1)
-    warmup_steps = prompt_int_with_default("Warmup steps", 1000, min_value=0)
-
-    checkpoint_dir = BASE_DIR / "RL_Model" / "checkpoints"
     cfg = get_default_config()
-
-    # Transfer menu inputs into centralized SAC config.
+    # Only override the selected service from user menu.
     cfg.environment.service = service
-    cfg.training.max_episodes = episodes
-    cfg.training.max_steps_per_episode = steps
-    cfg.training.batch_size = batch_size
-    cfg.training.warmup_steps = warmup_steps
-    cfg.checkpoint.checkpoint_dir = checkpoint_dir
     cfg.training.verbose = True
 
-    print("\nStarting SAC training...")
+    print("\nStarting SAC training (config-driven)...")
 
     try:
         train_result = train_sac(config=cfg)
@@ -610,19 +600,30 @@ def run_sac_evaluation_mode() -> None:
     """Run deterministic evaluation for a trained SAC model."""
     try:
         from RL_Model.trainer import load_config
+        from RL_Model.config import get_default_config
         from RL_Model.env_wrapper import NetworkSACEnv
         from RL_Model.agent import SACAgent
     except Exception as e:
         print(f"ERROR: RL evaluation modules could not be imported: {e}")
         return
 
+    # SAC settings are fully config-driven.
+    # The menu only selects mode + service; all evaluation settings come from config.py.
     service = choose_service_for_rl()
-    default_ckpt = BASE_DIR / "RL_Model" / "checkpoints" / f"sac_{service}_final.pt"
-    ckpt_input = input(f"Checkpoint path [{default_ckpt}]: ").strip()
-    ckpt_path = Path(ckpt_input) if ckpt_input else default_ckpt
+    cfg = get_default_config()
+    cfg.environment.service = service
 
-    eval_episodes = prompt_int_with_default("Evaluation episodes", 5, min_value=1)
-    eval_steps = prompt_int_with_default("Max steps per evaluation episode", 128, min_value=1)
+    checkpoint_dir_cfg = Path(cfg.checkpoint.checkpoint_dir)
+    checkpoint_dir = checkpoint_dir_cfg if checkpoint_dir_cfg.is_absolute() else BASE_DIR / checkpoint_dir_cfg
+    ckpt_path = checkpoint_dir / f"sac_{service}_final.pt"
+
+    # Evaluation settings sourced from config.py.
+    eval_episodes = int(cfg.evaluation.episodes)
+    eval_steps = int(cfg.evaluation.max_steps_per_episode)
+    if eval_episodes <= 0:
+        eval_episodes = 1
+    if eval_steps <= 0:
+        eval_steps = 1
 
     if not ckpt_path.exists():
         print(f"ERROR: Checkpoint file not found: {ckpt_path}")
@@ -630,8 +631,8 @@ def run_sac_evaluation_mode() -> None:
 
     try:
         env_service = service
-        env_seed = 42
-        env_rb_min = None
+        env_seed = cfg.environment.seed
+        env_rb_min = cfg.environment.rb_min
 
         config_path = ckpt_path.with_name(f"{ckpt_path.stem}_config.json")
         if config_path.exists():
