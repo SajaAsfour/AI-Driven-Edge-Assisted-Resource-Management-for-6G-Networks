@@ -7,10 +7,9 @@ import numpy as np
 
 if TYPE_CHECKING:
 	from .agent import SACAgent
+	from .config import SACConfig
 	from .env_wrapper import NetworkSACEnv
 	from .replay_buffer import ReplayBuffer
-
-
 def _import_rl_components() -> tuple[Any, Any, Any]:
 	"""Import RL components lazily to avoid heavy imports at module load."""
 	try:
@@ -41,38 +40,68 @@ def _run_evaluation_episode(env: Any, agent: Any, max_steps: int) -> float:
 
 
 def train_sac(
-	service: str = "voip",
-	max_episodes: int = 200,
-	max_steps_per_episode: int = 128,
-	batch_size: int = 64,
-	warmup_steps: int = 1_000,
-	evaluation_interval: int = 20,
-	save_interval: int = 25,
-	replay_capacity: int = 100_000,
-	rb_min: int = 1,
-	checkpoint_dir: Union[str, Path] = "RL_Model/checkpoints",
-	seed: Optional[int] = 42,
-	verbose: bool = True,
+	config: Optional["SACConfig"] = None,
 	) -> Dict[str, Any]:
 	"""Train a Soft Actor-Critic agent on the network environment.
 
 	Args:
-		service: Target service name (voip, cbr, streaming).
-		max_episodes: Number of episodes to train.
-		max_steps_per_episode: Max steps before forcing episode end.
-		batch_size: Replay minibatch size for SAC updates.
-		warmup_steps: Steps collected before gradient updates start.
-		evaluation_interval: Run deterministic evaluation every N episodes.
-		save_interval: Save model checkpoint every N episodes.
-		replay_capacity: Replay buffer size.
-		rb_min: Minimum RB allocation allowed by the environment action mapping.
-		checkpoint_dir: Directory for periodic checkpoints.
-		seed: Optional random seed.
-		verbose: Print progress to console.
+		config: Optional grouped SAC config object from RL_Model/config.py.
+			- If None: create defaults with get_default_config().
+			- If provided: use its section values.
+			- If a config field is None: fall back to the legacy default value.
 
 	Returns:
 		Dictionary with training history and paths to saved checkpoints.
 	"""
+	# Legacy defaults preserved from original train_sac behavior.
+	default_service = "voip"
+	default_max_episodes = 200
+	default_max_steps_per_episode = 128
+	default_batch_size = 64
+	default_warmup_steps = 1_000
+	default_evaluation_interval = 20
+	default_save_interval = 25
+	default_replay_capacity = 100_000
+	default_rb_min = 1
+	default_checkpoint_dir: Union[str, Path] = "RL_Model/checkpoints"
+	default_seed: Optional[int] = 42
+	default_verbose = True
+
+	try:
+		from .config import SACConfig, get_default_config
+	except ImportError:
+		from config import SACConfig, get_default_config
+
+	if config is None:
+		config = get_default_config()
+	elif not isinstance(config, SACConfig):
+		raise TypeError("config must be an instance of SACConfig")
+
+	# Two-level resolution only:
+	# 1) config value
+	# 2) fallback default when config value is None
+	def _from_config(cfg_value: Any, fallback: Any) -> Any:
+		return fallback if cfg_value is None else cfg_value
+
+	service = _from_config(config.environment.service, default_service)
+	max_episodes = _from_config(config.training.max_episodes, default_max_episodes)
+	max_steps_per_episode = _from_config(
+		config.training.max_steps_per_episode,
+		default_max_steps_per_episode,
+	)
+	batch_size = _from_config(config.training.batch_size, default_batch_size)
+	warmup_steps = _from_config(config.training.warmup_steps, default_warmup_steps)
+	evaluation_interval = _from_config(
+		config.evaluation.evaluation_interval,
+		default_evaluation_interval,
+	)
+	save_interval = _from_config(config.checkpoint.save_interval, default_save_interval)
+	replay_capacity = _from_config(config.replay_buffer.capacity, default_replay_capacity)
+	rb_min = _from_config(config.environment.rb_min, default_rb_min)
+	checkpoint_dir = _from_config(config.checkpoint.checkpoint_dir, default_checkpoint_dir)
+	seed = _from_config(config.environment.seed, default_seed)
+	verbose = _from_config(config.training.verbose, default_verbose)
+
 	if max_episodes <= 0:
 		raise ValueError("max_episodes must be > 0")
 	if max_steps_per_episode <= 0:
@@ -99,7 +128,31 @@ def train_sac(
 	state_dim = int(np.prod(env.observation_shape))
 	action_dim = int(np.prod(env.action_shape))
 
-	agent = SACAgent(state_dim=state_dim, action_dim=action_dim)
+	# Pass agent hyperparameters from config.agent into SACAgent.
+	# Any field that is None is intentionally omitted so SACAgent falls back
+	# to its own constructor defaults for that parameter.
+	agent_kwargs: Dict[str, Any] = {
+		"state_dim": state_dim,
+		"action_dim": action_dim,
+	}
+	if config.agent.hidden_dims is not None:
+		agent_kwargs["hidden_dims"] = config.agent.hidden_dims
+	if config.agent.gamma is not None:
+		agent_kwargs["gamma"] = config.agent.gamma
+	if config.agent.tau is not None:
+		agent_kwargs["tau"] = config.agent.tau
+	if config.agent.actor_lr is not None:
+		agent_kwargs["actor_lr"] = config.agent.actor_lr
+	if config.agent.critic_lr is not None:
+		agent_kwargs["critic_lr"] = config.agent.critic_lr
+	if config.agent.alpha_lr is not None:
+		agent_kwargs["alpha_lr"] = config.agent.alpha_lr
+	if config.agent.target_entropy is not None:
+		agent_kwargs["target_entropy"] = config.agent.target_entropy
+	if config.agent.device is not None:
+		agent_kwargs["device"] = config.agent.device
+
+	agent = SACAgent(**agent_kwargs)
 	replay_buffer = ReplayBuffer(
 		capacity=replay_capacity,
 		state_dim=state_dim,

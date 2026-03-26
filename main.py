@@ -569,6 +569,7 @@ def run_sac_training_mode() -> None:
     """
     try:
         from RL_Model.trainer import train_sac
+        from RL_Model.config import get_default_config
     except Exception as e:
         print(f"ERROR: RL training modules could not be imported: {e}")
         return
@@ -580,18 +581,21 @@ def run_sac_training_mode() -> None:
     warmup_steps = prompt_int_with_default("Warmup steps", 1000, min_value=0)
 
     checkpoint_dir = BASE_DIR / "RL_Model" / "checkpoints"
+    cfg = get_default_config()
+
+    # Transfer menu inputs into centralized SAC config.
+    cfg.environment.service = service
+    cfg.training.max_episodes = episodes
+    cfg.training.max_steps_per_episode = steps
+    cfg.training.batch_size = batch_size
+    cfg.training.warmup_steps = warmup_steps
+    cfg.checkpoint.checkpoint_dir = checkpoint_dir
+    cfg.training.verbose = True
+
     print("\nStarting SAC training...")
 
     try:
-        train_result = train_sac(
-            service=service,
-            max_episodes=episodes,
-            max_steps_per_episode=steps,
-            batch_size=batch_size,
-            warmup_steps=warmup_steps,
-            checkpoint_dir=checkpoint_dir,
-            verbose=True,
-        )
+        train_result = train_sac(config=cfg)
     except Exception as e:
         print(f"ERROR: SAC training failed: {e}")
         return
