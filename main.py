@@ -4,9 +4,9 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 import numpy as np
-#test
+
 # Ensure Network_Model is importable when running main.py from repo root.
 BASE_DIR = Path(__file__).parent.resolve()
 NETWORK_MODEL_DIR = BASE_DIR / "Network_Model"
@@ -364,7 +364,8 @@ def display_main_execution_menu() -> None:
     print("  1. Run existing simulation")
     print("  2. Train SAC")
     print("  3. Evaluate trained SAC")
-    print("  4. Exit")
+    print("  4. Predict RBs from custom traffic input")
+    print("  5. Exit")
     print("=" * 60)
 
 
@@ -372,13 +373,13 @@ def get_main_execution_choice() -> str:
     """Get user choice for top-level execution menu."""
     while True:
         try:
-            choice = input("Enter your choice (1-4): ").strip()
+            choice = input("Enter your choice (1-5): ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nInput cancelled. Exiting...")
-            return "4"
-        if choice in {"1", "2", "3", "4"}:
+            return "5"
+        if choice in {"1", "2", "3", "4", "5"}:
             return choice
-        print("Invalid choice. Please enter 1, 2, 3, or 4.")
+        print("Invalid choice. Please enter 1, 2, 3, 4, or 5.")
 
 
 def choose_service_for_rl() -> str:
@@ -396,21 +397,6 @@ def choose_service_for_rl() -> str:
         if choice == "3":
             return "streaming"
         print("Invalid choice. Please enter 1, 2, or 3.")
-
-
-def prompt_int_with_default(prompt: str, default: int, min_value: int = 1) -> int:
-    """Read integer input with a default fallback."""
-    while True:
-        raw = input(f"{prompt} [{default}]: ").strip()
-        if raw == "":
-            return default
-        try:
-            value = int(raw)
-            if value < min_value:
-                raise ValueError
-            return value
-        except ValueError:
-            print(f"Please enter an integer >= {min_value}.")
 
 
 def run_existing_simulation(config: Dict[str, Any], config_dir: Path, logger: logging.Logger) -> None:
@@ -685,6 +671,173 @@ def run_sac_evaluation_mode() -> None:
     print(f"\nEvaluation complete | mean reward: {mean_reward:.4f} | std: {std_reward:.4f}")
 
 
+def predict_resource_blocks_from_input(
+    sample_input: Dict[str, Any],
+    checkpoint_dir: Union[str, Path] = "RL_Model/checkpoints",
+    seed: Optional[int] = 42,
+) -> Dict[str, Any]:
+    """
+    Predict per-DTI RB allocations for each service using trained SAC checkpoints.
+
+    This function reuses existing `NetworkSACEnv` and `SACAgent` inference logic
+    (`env.infer_rb_from_traffic(...)`) without rewriting policy behavior.
+    """
+    try:
+        from RL_Model.trainer import load_config
+        from RL_Model.env_wrapper import NetworkSACEnv
+        from RL_Model.agent import SACAgent
+    except Exception as e:
+        raise RuntimeError(f"RL inference modules could not be imported: {e}") from e
+
+    if not isinstance(sample_input, dict):
+        raise ValueError("sample_input must be a dictionary")
+
+    if "traffic_users_per_tti" not in sample_input:
+        raise ValueError("sample_input must contain top-level key 'traffic_users_per_tti'")
+
+    traffic_all = sample_input["traffic_users_per_tti"]
+    if not isinstance(traffic_all, dict):
+        raise ValueError("'traffic_users_per_tti' must be a dictionary")
+
+    required_services = ["voip", "cbr", "streaming"]
+    missing_services = [s for s in required_services if s not in traffic_all]
+    if missing_services:
+        raise ValueError(f"Missing service keys in traffic_users_per_tti: {missing_services}")
+
+    checkpoint_dir_path = Path(checkpoint_dir)
+    if not checkpoint_dir_path.is_absolute():
+        checkpoint_dir_path = BASE_DIR / checkpoint_dir_path
+
+    predicted_per_dti: Dict[str, List[int]] = {}
+    predicted_per_tti: Dict[str, List[List[int]]] = {}
+
+    for service in required_services:
+        ckpt_path = checkpoint_dir_path / f"sac_{service}_final.pt"
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"Checkpoint not found for service '{service}': {ckpt_path}")
+
+        env_service = service
+        env_seed = seed
+        env_rb_min = None
+
+        config_path = ckpt_path.with_name(f"{ckpt_path.stem}_config.json")
+        if config_path.exists():
+            loaded_config = load_config(config_path)
+            env_cfg = loaded_config.get("environment", {})
+            if isinstance(env_cfg, dict):
+                env_service = env_cfg.get("service", env_service)
+                env_seed = env_cfg.get("seed", env_seed)
+                env_rb_min = env_cfg.get("rb_min", env_rb_min)
+
+        env_kwargs: Dict[str, Any] = {"service": env_service, "seed": env_seed}
+        if env_rb_min is not None:
+            env_kwargs["rb_min"] = env_rb_min
+
+        env = NetworkSACEnv(**env_kwargs)
+        state_dim = int(np.prod(env.observation_shape))
+        action_dim = int(np.prod(env.action_shape))
+
+        agent = SACAgent(state_dim=state_dim, action_dim=action_dim)
+        agent.load(ckpt_path)
+
+        service_traffic = traffic_all[service]
+        if not isinstance(service_traffic, list):
+            raise ValueError(f"traffic_users_per_tti.{service} must be a list of DTI traffic vectors")
+
+        service_rb_per_dti: List[int] = []
+        service_rb_per_tti: List[List[int]] = []
+
+        for dti_index, traffic_dti in enumerate(service_traffic):
+            if not isinstance(traffic_dti, list):
+                raise ValueError(f"traffic_users_per_tti.{service}[{dti_index}] must be a list")
+            if len(traffic_dti) != env.n:
+                raise ValueError(
+                    f"traffic_users_per_tti.{service}[{dti_index}] must have length n={env.n}, got {len(traffic_dti)}"
+                )
+
+            rb_pred = int(env.infer_rb_from_traffic(traffic_dti=traffic_dti, agent=agent, dti_index=dti_index))
+            if rb_pred < env.rb_min or (env.rb_max is not None and rb_pred > env.rb_max):
+                raise ValueError(
+                    f"Predicted RB out of bounds for {service} DTI {dti_index}: {rb_pred} not in [{env.rb_min}, {env.rb_max}]"
+                )
+
+            service_rb_per_dti.append(rb_pred)
+            service_rb_per_tti.append([rb_pred] * env.n)
+
+        predicted_per_dti[service] = service_rb_per_dti
+        predicted_per_tti[service] = service_rb_per_tti
+
+    return {
+        "predicted_resource_blocks_per_dti": predicted_per_dti,
+        "predicted_resource_blocks_per_tti": predicted_per_tti,
+    }
+
+
+def _json_safe(value: Any) -> Any:
+    """Recursively convert objects to JSON-serializable and finite-safe values."""
+    if isinstance(value, np.ndarray):
+        return [_json_safe(v) for v in value.tolist()]
+    if isinstance(value, np.generic):
+        return _json_safe(value.item())
+    if isinstance(value, float):
+        if not np.isfinite(value):
+            return None
+        return value
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, Path):
+        return str(value)
+    return value
+
+
+def run_sac_custom_inference_mode() -> None:
+    """Run deterministic RB prediction from custom traffic input."""
+    sample_input = {
+        "traffic_users_per_tti": {
+            "voip": [
+                [5, 5, 5, 5, 5, 5, 5, 5],
+                [40, 40, 40, 40, 45, 45, 45, 45],
+            ],
+            "cbr": [
+                [50, 50, 55, 50, 50, 55, 55, 55],
+                [5, 5, 5, 5, 5, 5, 5, 5],
+            ],
+            "streaming": [
+                [5, 5, 5, 5, 5, 5, 5, 5],
+                [5, 5, 5, 5, 5, 5, 5, 5],
+            ],
+        }
+    }
+
+    checkpoint_dir = BASE_DIR / "RL_Model" / "checkpoints"
+
+    try:
+        output = predict_resource_blocks_from_input(
+            sample_input=sample_input,
+            checkpoint_dir=checkpoint_dir,
+            seed=42,
+        )
+    except Exception as e:
+        print(f"ERROR: Custom SAC inference failed: {e}")
+        return
+
+    print("\n" + "=" * 60)
+    print("CUSTOM SAC INFERENCE OUTPUT")
+    print("=" * 60)
+    for service, rb_list in output["predicted_resource_blocks_per_dti"].items():
+        print(f"\nService: {service}")
+        for dti_index, rb in enumerate(rb_list):
+            print(f"  DTI {dti_index} -> Predicted RB: {int(rb)}")
+
+    output_path = checkpoint_dir / "custom_inference_output.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(_json_safe(output), indent=2), encoding="utf-8")
+    print("\nSaved custom inference output to:")
+    print(output_path)
+
+
 
 if __name__ == "__main__":
     np.random.seed(42)
@@ -728,6 +881,9 @@ if __name__ == "__main__":
         elif mode_choice == "3":
             # Evaluate a trained SAC checkpoint deterministically.
             run_sac_evaluation_mode()
+        elif mode_choice == "4":
+            # Deterministic RB prediction from custom traffic input using trained SAC models.
+            run_sac_custom_inference_mode()
         else:
             break
     
