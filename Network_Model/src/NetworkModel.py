@@ -250,7 +250,22 @@ class NetworkModel:
         
         traffic_key = str(traffic)
         if traffic_key not in mean_matrix:
-            raise ValueError(f"Traffic value {traffic} not found in mean matrix for {metric_name}")
+            # Fallback: use nearest available traffic key when exact match is missing.
+            # This prevents training/inference interruption for out-of-grid traffic values.
+            available_keys: List[int] = []
+            for key in mean_matrix.keys():
+                try:
+                    available_keys.append(int(key))
+                except (TypeError, ValueError):
+                    continue
+
+            if not available_keys:
+                raise ValueError(
+                    f"No numeric traffic keys available in mean matrix for {metric_name}"
+                )
+
+            nearest_traffic = min(available_keys, key=lambda x: (abs(x - traffic), x))
+            traffic_key = str(nearest_traffic)
         
         if rbs not in rbs_values:
             raise ValueError(f"RBS value {rbs} not found in available RBS values: {rbs_values}")

@@ -18,7 +18,6 @@
       "cbrReceivedThroughput": 3000.0
     },
     "streaming": {
-      "rtVideoStreamingEnd2endDelaySegment": 300.0,
       "rtVideoStreamingSegmentLoss": 20.0
     }
   }

@@ -261,6 +261,80 @@ class NetworkSACEnv:
 			raise ValueError("state contains non-finite values")
 		return state
 
+	def build_state_from_traffic(
+		self,
+		traffic_dti: Union[list, tuple, np.ndarray],
+		dti_index: int = 0,
+	) -> np.ndarray:
+		"""Build a traffic-conditioned inference state for a specific DTI.
+
+		This method avoids relying on reset-only history by deriving beta/CDF
+		features from one deterministic model probe using the provided traffic.
+		"""
+		traffic_vec = self._normalize_traffic_vector(traffic_dti)
+		traffic_arr = np.asarray(traffic_vec, dtype=np.float32)
+
+		max_traffic_element = float(max(self.config["traffic_elements"]))
+		norm = max(max_traffic_element, 1.0)
+
+		progress = float(np.clip(float(dti_index) / float(max(self.m, 1)), 0.0, 1.0))
+		mean_traffic = float(np.mean(traffic_arr))
+		mean_traffic_norm = float(np.clip(mean_traffic / norm, 0.0, 1.0))
+		std_traffic_norm = float(np.clip(np.std(traffic_arr) / norm, 0.0, 1.0))
+
+		# Probe model response for this DTI traffic to obtain beta/cdf features.
+		probe_ratio = float(np.clip(mean_traffic / norm, 0.0, 1.0))
+		probe_rb_float = self.rb_min + probe_ratio * float(self.rb_max - self.rb_min)
+		probe_rb = int(np.clip(np.round(probe_rb_float), self.rb_min, self.rb_max))
+		rb_data = [probe_rb] * self.n
+
+		self.model.set_service(self.service)
+		self.model.reset(self.service)
+		self.model.set_traffic(traffic_vec)
+		self.model.set_resource_blocks(rb_data)
+		dti_result = self.model.process_dti(
+			traffic_data=traffic_vec,
+			rb_data=rb_data,
+			c_capacity=self.c,
+			rb_used=probe_rb,
+			lambda_reward=self.lambda_reward,
+		)
+
+		(beta_current, cdf_matrix), _ = self.model.to_rl_input(dti_result)
+		beta_cumulative = float(dti_result.beta_result.beta_cumulative)
+		cdf_y = np.asarray(cdf_matrix[:, 1], dtype=np.float32)
+
+		state = np.concatenate(
+			[
+				np.array(
+					[
+						progress,
+						mean_traffic_norm,
+						std_traffic_norm,
+						float(np.clip(beta_current, 0.0, 1.0)),
+						float(np.clip(beta_cumulative, 0.0, 1.0)),
+						float(np.clip(self._normalize_rb(probe_rb), 0.0, 1.0)),
+					],
+					dtype=np.float32,
+				),
+				np.clip(cdf_y.astype(np.float32, copy=False), 0.0, 1.0),
+			]
+		)
+		if not np.all(np.isfinite(state)):
+			raise ValueError("inference state contains non-finite values")
+		return state
+
+	def infer_rb_from_traffic(
+		self,
+		traffic_dti: Union[list, tuple, np.ndarray],
+		agent: Any,
+		dti_index: int = 0,
+	) -> int:
+		"""Infer deterministic RB directly from provided DTI traffic."""
+		state = self.build_state_from_traffic(traffic_dti=traffic_dti, dti_index=dti_index)
+		action = agent.select_action(state, evaluate=True)
+		return int(self._action_to_rb(action))
+
 	@property
 	def observation_shape(self) -> Tuple[int]:
 		"""Return observation shape for network input layer construction."""
@@ -322,6 +396,27 @@ class NetworkSACEnv:
 		if not np.isfinite(value):
 			raise ValueError(f"action must be finite, got {value}")
 		return value
+
+	def _normalize_traffic_vector(self, traffic_dti: Union[list, tuple, np.ndarray]) -> list:
+		"""Convert input traffic to integer list with length exactly n."""
+		arr = np.asarray(traffic_dti, dtype=np.float32).reshape(-1)
+		if arr.size == 0:
+			raise ValueError("traffic_dti cannot be empty")
+
+		if not np.all(np.isfinite(arr)):
+			raise ValueError("traffic_dti must contain finite values")
+		if np.any(arr < 0.0):
+			raise ValueError("traffic_dti values must be >= 0")
+
+		vals = [int(np.round(x)) for x in arr.tolist()]
+		if len(vals) == self.n:
+			return vals
+
+		if len(vals) < self.n:
+			repeated = (vals * ((self.n + len(vals) - 1) // len(vals)))[: self.n]
+			return repeated
+
+		return vals[: self.n]
 
 	@classmethod
 	def _normalize_service(cls, service: str) -> str:

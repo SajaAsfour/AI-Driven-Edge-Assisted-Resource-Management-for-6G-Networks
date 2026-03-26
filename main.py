@@ -169,7 +169,7 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
         "cbrReceivedThroughput",
     ]
     STREAMING_METRICS = [
-        "rtVideoStreamingEnd2endDelaySegment", "rtVideoStreamingSegmentLoss",
+        "rtVideoStreamingSegmentLoss",
     ]
     
     config_data = json.loads(config_path.read_text(encoding="utf-8"))
@@ -371,7 +371,11 @@ def display_main_execution_menu() -> None:
 def get_main_execution_choice() -> str:
     """Get user choice for top-level execution menu."""
     while True:
-        choice = input("Enter your choice (1-4): ").strip()
+        try:
+            choice = input("Enter your choice (1-4): ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\nInput cancelled. Exiting...")
+            return "4"
         if choice in {"1", "2", "3", "4"}:
             return choice
         print("Invalid choice. Please enter 1, 2, 3, or 4.")
