@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 import numpy as np
 
-# Ensure Network_Model is importable when running main.py from repo root.
 BASE_DIR = Path(__file__).parent.resolve()
 NETWORK_MODEL_DIR = BASE_DIR / "Network_Model"
 if str(NETWORK_MODEL_DIR) not in sys.path:
@@ -17,7 +16,6 @@ from Network_Model.src.NetworkModel import NetworkModel
 Number = Union[int, float]
 
 
-# LOGGING CONFIGURATION
 
 def setup_logging(log_file: str = "debug.log"):
     """
@@ -280,7 +278,6 @@ def load_metric_matrices(service: str, json_file: Path) -> Dict[str, Any]:
 # MENU DISPLAY
 
 def display_menu():
-    """Display service selection menu on console."""
     print("\n" + "="*50)
     print("NETWORK MODEL :)")
     print("="*50)
@@ -293,7 +290,6 @@ def display_menu():
 
 
 def get_user_choice() -> str:
-    """Get user's service selection."""
     while True:
         choice = input("Enter your choice (1-4): ").strip()
         if choice == '1':
@@ -357,11 +353,10 @@ def log_dti_result(logger: logging.Logger, service: str, dti_index: int,
 
 
 def display_main_execution_menu() -> None:
-    """Display top-level execution menu (simulation / RL train / RL eval)."""
     print("\n" + "=" * 60)
-    print("MAIN EXECUTION MENU")
+    print("MAIN MENU")
     print("=" * 60)
-    print("  1. Run existing simulation")
+    print("  1. Run netowrk model simulation")
     print("  2. Train SAC")
     print("  3. Evaluate trained SAC")
     print("  4. Predict RBs from custom traffic input")
@@ -370,7 +365,6 @@ def display_main_execution_menu() -> None:
 
 
 def get_main_execution_choice() -> str:
-    """Get user choice for top-level execution menu."""
     while True:
         try:
             choice = input("Enter your choice (1-5): ").strip()
@@ -383,7 +377,6 @@ def get_main_execution_choice() -> str:
 
 
 def choose_service_for_rl() -> str:
-    """Select one service for RL modes."""
     print("\nSelect RL service:")
     print("  1. VoIP")
     print("  2. CBR")
@@ -399,13 +392,7 @@ def choose_service_for_rl() -> str:
         print("Invalid choice. Please enter 1, 2, or 3.")
 
 
-def run_existing_simulation(config: Dict[str, Any], config_dir: Path, logger: logging.Logger) -> None:
-    """
-    Run the original simulation flow.
-
-    This keeps the existing project behavior intact, including service menu,
-    DTI-by-DTI processing, console outputs, and debug logging.
-    """
+def run_networkmodel(config: Dict[str, Any], config_dir: Path, logger: logging.Logger) -> None:
     model = NetworkModel(
         n=config['n'],
         m=config['m'],
@@ -551,12 +538,7 @@ def run_existing_simulation(config: Dict[str, Any], config_dir: Path, logger: lo
 
 
 def run_sac_training_mode() -> None:
-    """
-    Run SAC training mode.
 
-    RL imports are performed lazily to avoid impacting the existing simulation
-    startup path unless RL mode is explicitly selected.
-    """
     try:
         from RL_Model.trainer import train_sac
         from RL_Model.config import get_default_config
@@ -564,11 +546,9 @@ def run_sac_training_mode() -> None:
         print(f"ERROR: RL training modules could not be imported: {e}")
         return
 
-    # SAC settings are fully config-driven.
-    # The menu only selects mode + service; all hyperparameters come from config.py.
+    
     service = choose_service_for_rl()
     cfg = get_default_config()
-    # Only override the selected service from user menu.
     cfg.environment.service = service
     cfg.training.verbose = True
 
@@ -587,7 +567,6 @@ def run_sac_training_mode() -> None:
 
 
 def run_sac_evaluation_mode() -> None:
-    """Run deterministic evaluation for a trained SAC model."""
     try:
         from RL_Model.trainer import load_config
         from RL_Model.config import get_default_config
@@ -597,8 +576,7 @@ def run_sac_evaluation_mode() -> None:
         print(f"ERROR: RL evaluation modules could not be imported: {e}")
         return
 
-    # SAC settings are fully config-driven.
-    # The menu only selects mode + service; all evaluation settings come from config.py.
+   
     service = choose_service_for_rl()
     cfg = get_default_config()
     cfg.environment.service = service
@@ -607,7 +585,6 @@ def run_sac_evaluation_mode() -> None:
     checkpoint_dir = checkpoint_dir_cfg if checkpoint_dir_cfg.is_absolute() else BASE_DIR / checkpoint_dir_cfg
     ckpt_path = checkpoint_dir / f"sac_{service}_final.pt"
 
-    # Evaluation settings sourced from config.py.
     eval_episodes = int(cfg.evaluation.episodes)
     eval_steps = int(cfg.evaluation.max_steps_per_episode)
     if eval_episodes <= 0:
@@ -793,12 +770,11 @@ def _json_safe(value: Any) -> Any:
 
 
 def run_sac_custom_inference_mode() -> None:
-    """Run deterministic RB prediction from custom traffic input."""
     sample_input = {
         "traffic_users_per_tti": {
             "voip": [
-                [5, 5, 5, 5, 5, 5, 5, 5],
                 [40, 40, 40, 40, 45, 45, 45, 45],
+                [5, 5, 5, 5, 5, 5, 5, 5],
             ],
             "cbr": [
                 [50, 50, 55, 50, 50, 55, 55, 55],
@@ -873,16 +849,12 @@ if __name__ == "__main__":
         mode_choice = get_main_execution_choice()
 
         if mode_choice == "1":
-            # Existing behavior preserved under simulation mode.
-            run_existing_simulation(config=config, config_dir=CONFIG_DIR, logger=logger)
+            run_networkmodel(config=config, config_dir=CONFIG_DIR, logger=logger)
         elif mode_choice == "2":
-            # Train SAC on one selected service.
             run_sac_training_mode()
         elif mode_choice == "3":
-            # Evaluate a trained SAC checkpoint deterministically.
             run_sac_evaluation_mode()
         elif mode_choice == "4":
-            # Deterministic RB prediction from custom traffic input using trained SAC models.
             run_sac_custom_inference_mode()
         else:
             break

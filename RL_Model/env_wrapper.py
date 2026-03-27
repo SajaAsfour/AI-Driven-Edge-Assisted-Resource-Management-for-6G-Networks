@@ -7,7 +7,6 @@ import sys
 import numpy as np
 
 
-# Make project root importable when this file is used directly.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
 	sys.path.insert(0, str(PROJECT_ROOT))
@@ -21,10 +20,7 @@ Number = Union[int, float]
 
 class NetworkSACEnv:
 	"""
-	Minimal Gym-like wrapper for the existing `NetworkModel`.
-
 	This wrapper is intentionally lightweight:
-	- no dependency on OpenAI Gym
 	- one service at a time (`voip`, `cbr`, or `streaming`)
 	- single continuous SAC action mapped to an integer RB allocation
 
@@ -35,7 +31,6 @@ class NetworkSACEnv:
 	- The action controls RB allocation for the selected service in current DTI,
 	  replicated across TTIs in that DTI (same pattern your current code uses).
 	"""
-
 	SERVICE_FILE_NAMES: Dict[str, str] = {
 		"voip": "D2min_VoIP_summary.json",
 		"cbr": "D30sec_CBR_summary.json",
@@ -224,8 +219,6 @@ class NetworkSACEnv:
 			 last_rb_norm,
 			 cdf_y[0], ..., cdf_y[k-1]]
 
-		Returns:
-			1D float32 NumPy array.
 		"""
 		progress = float(self._dti_cursor) / float(max(self.m, 1))
 
@@ -249,6 +242,7 @@ class NetworkSACEnv:
 			raise ValueError("state contains non-finite values")
 		return state
 
+    #for testing
 	def build_state_from_traffic(
 		self,
 		traffic_dti: Union[list, tuple, np.ndarray],
@@ -263,7 +257,6 @@ class NetworkSACEnv:
 
 		progress = float(np.clip(float(dti_index) / float(max(self.m, 1)), 0.0, 1.0))
 
-		# Probe model response for this DTI traffic to obtain beta/cdf features.
 		probe_rb = int(np.round(0.5 * (self.rb_min + self.rb_max)))
 		rb_data = [probe_rb] * self.n
 

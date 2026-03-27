@@ -80,7 +80,6 @@ class CheckpointConfig:
 
 @dataclass(slots=True)
 class SACConfig:
-	"""Top-level grouped SAC configuration."""
 
 	environment: EnvironmentConfig = field(default_factory=EnvironmentConfig)
 	agent: SACAgentConfig = field(default_factory=SACAgentConfig)
@@ -90,11 +89,7 @@ class SACConfig:
 	checkpoint: CheckpointConfig = field(default_factory=CheckpointConfig)
 
 	def trainer_kwargs(self) -> Dict[str, Any]:
-		"""Build kwargs compatible with current `train_sac(...)` signature.
-
-		This keeps integration easy while still allowing richer config sections
-		for direct use with `NetworkSACEnv`, `SACAgent`, and `ReplayBuffer`.
-		"""
+		
 		return {
 			"service": self.environment.service,
 			"max_episodes": self.training.max_episodes,

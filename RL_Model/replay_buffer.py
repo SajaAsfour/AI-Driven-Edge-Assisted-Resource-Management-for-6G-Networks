@@ -3,11 +3,6 @@
 This module provides a NumPy-backed circular replay buffer that stores
 transitions in the form:
 	(state, action, reward, next_state, done)
-
-Design goals:
-- Fast insertion and random sampling
-- Defensive shape/type checks
-- Batch output that is easy to convert to PyTorch tensors
 """
 
 from __future__ import annotations
@@ -28,13 +23,6 @@ class ReplayBuffer:
 		Dimension of flattened state vector.
 	action_dim : int
 		Dimension of continuous action vector.
-
-	Notes
-	-----
-	- States/actions are stored as float32 arrays.
-	- Rewards and dones are stored as shape (N, 1) float32 for convenience
-	  when converting to PyTorch tensors.
-	- Sampling is uniform random without replacement.
 	"""
 
 	def __init__(self, capacity: int, state_dim: int, action_dim: int) -> None:
@@ -63,7 +51,6 @@ class ReplayBuffer:
 		return self._size
 
 	def _as_flat_vector(self, name: str, value: np.ndarray | list | tuple, dim: int) -> np.ndarray:
-		"""Convert input to a finite float32 flat vector of the expected size."""
 		arr = np.asarray(value, dtype=np.float32).reshape(-1)
 		if arr.shape[0] != dim:
 			raise ValueError(

@@ -135,9 +135,6 @@ def train_sac(
 	elif not isinstance(config, SACConfig):
 		raise TypeError("config must be an instance of SACConfig")
 
-	# Two-level resolution only:
-	# 1) config value
-	# 2) fallback default when config value is None
 	def _from_config(cfg_value: Any, fallback: Any) -> Any:
 		return fallback if cfg_value is None else cfg_value
 
@@ -187,8 +184,6 @@ def train_sac(
 	action_dim = int(np.prod(env.action_shape))
 
 	# Pass agent hyperparameters from config.agent into SACAgent.
-	# Any field that is None is intentionally omitted so SACAgent falls back
-	# to its own constructor defaults for that parameter.
 	agent_kwargs: Dict[str, Any] = {
 		"state_dim": state_dim,
 		"action_dim": action_dim,
@@ -220,7 +215,6 @@ def train_sac(
 	checkpoint_path = Path(checkpoint_dir)
 	checkpoint_path.mkdir(parents=True, exist_ok=True)
 
-	# File-only training logger (no console handlers).
 	log_path = checkpoint_path / "training.log"
 	logger = logging.getLogger(f"sac_training_{service}")
 	logger.setLevel(logging.INFO)
@@ -378,8 +372,7 @@ def train_sac(
 	metrics_path = checkpoint_path / "training_metrics.json"
 	save_training_metrics(history, metrics_path)
 
-	# Auto-generate training plots beside the saved metrics file.
-	# Plotting errors should never crash or invalidate training outputs.
+
 	try:
 		try:
 			from RL_Model.plot_metrics import plot_training_metrics
