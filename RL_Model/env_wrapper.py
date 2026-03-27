@@ -219,8 +219,6 @@ class NetworkSACEnv:
 
 		State layout:
 			[progress,
-			 mean_traffic_norm,
-			 std_traffic_norm,
 			 last_beta_current,
 			 last_beta_cumulative,
 			 last_rb_norm,
@@ -229,32 +227,22 @@ class NetworkSACEnv:
 		Returns:
 			1D float32 NumPy array.
 		"""
-		if self._dti_cursor < self.m:
-			traffic_now = np.asarray(self._traffic_by_dti[self._dti_cursor], dtype=np.float32)
-		else:
-			traffic_now = np.asarray(self._traffic_by_dti[-1], dtype=np.float32)
-
-		max_traffic_element = float(max(self.config["traffic_elements"]))
-		norm = max(max_traffic_element, 1.0)
-
 		progress = float(self._dti_cursor) / float(max(self.m, 1))
-		mean_traffic_norm = float(np.clip(np.mean(traffic_now) / norm, 0.0, 1.0))
-		std_traffic_norm = float(np.clip(np.std(traffic_now) / norm, 0.0, 1.0))
+
+		cdf_y = np.clip(self._last_cdf_y.astype(np.float32, copy=False), 0.0, 1.0)
 
 		state = np.concatenate(
 			[
 				np.array(
 					[
 						progress,
-						mean_traffic_norm,
-						std_traffic_norm,
 						float(np.clip(self._last_beta_current, 0.0, 1.0)),
 						float(np.clip(self._last_beta_cumulative, 0.0, 1.0)),
 						float(np.clip(self._last_rb_norm, 0.0, 1.0)),
 					],
 					dtype=np.float32,
 				),
-				np.clip(self._last_cdf_y.astype(np.float32, copy=False), 0.0, 1.0),
+				cdf_y,
 			]
 		)
 		if not np.all(np.isfinite(state)):
@@ -272,20 +260,11 @@ class NetworkSACEnv:
 		features from one deterministic model probe using the provided traffic.
 		"""
 		traffic_vec = self._normalize_traffic_vector(traffic_dti)
-		traffic_arr = np.asarray(traffic_vec, dtype=np.float32)
-
-		max_traffic_element = float(max(self.config["traffic_elements"]))
-		norm = max(max_traffic_element, 1.0)
 
 		progress = float(np.clip(float(dti_index) / float(max(self.m, 1)), 0.0, 1.0))
-		mean_traffic = float(np.mean(traffic_arr))
-		mean_traffic_norm = float(np.clip(mean_traffic / norm, 0.0, 1.0))
-		std_traffic_norm = float(np.clip(np.std(traffic_arr) / norm, 0.0, 1.0))
 
 		# Probe model response for this DTI traffic to obtain beta/cdf features.
-		probe_ratio = float(np.clip(mean_traffic / norm, 0.0, 1.0))
-		probe_rb_float = self.rb_min + probe_ratio * float(self.rb_max - self.rb_min)
-		probe_rb = int(np.clip(np.round(probe_rb_float), self.rb_min, self.rb_max))
+		probe_rb = int(np.round(0.5 * (self.rb_min + self.rb_max)))
 		rb_data = [probe_rb] * self.n
 
 		self.model.set_service(self.service)
@@ -303,21 +282,20 @@ class NetworkSACEnv:
 		(beta_current, cdf_matrix), _ = self.model.to_rl_input(dti_result)
 		beta_cumulative = float(dti_result.beta_result.beta_cumulative)
 		cdf_y = np.asarray(cdf_matrix[:, 1], dtype=np.float32)
+		cdf_y = np.clip(cdf_y, 0.0, 1.0)
 
 		state = np.concatenate(
 			[
 				np.array(
 					[
 						progress,
-						mean_traffic_norm,
-						std_traffic_norm,
 						float(np.clip(beta_current, 0.0, 1.0)),
 						float(np.clip(beta_cumulative, 0.0, 1.0)),
 						float(np.clip(self._normalize_rb(probe_rb), 0.0, 1.0)),
 					],
 					dtype=np.float32,
 				),
-				np.clip(cdf_y.astype(np.float32, copy=False), 0.0, 1.0),
+				cdf_y.astype(np.float32, copy=False),
 			]
 		)
 		if not np.all(np.isfinite(state)):
@@ -338,7 +316,7 @@ class NetworkSACEnv:
 	@property
 	def observation_shape(self) -> Tuple[int]:
 		"""Return observation shape for network input layer construction."""
-		return (6 + self.k,)
+		return (4 + self.k,)
 
 	@property
 	def action_shape(self) -> Tuple[int]:

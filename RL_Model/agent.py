@@ -26,7 +26,7 @@ class SACAgent:
 
 	def __init__(
 		self,
-		state_dim: int = 22,
+		state_dim: int = 20,
 		action_dim: int = 1,
 		hidden_dims: tuple[int, ...] = (256, 256),
 		gamma: float = 0.99,
@@ -260,6 +260,21 @@ class SACAgent:
 			raise FileNotFoundError(f"Checkpoint not found: {load_path}")
 
 		checkpoint = torch.load(load_path, map_location=self.device)
+
+		ckpt_state_dim = checkpoint.get("state_dim")
+		ckpt_action_dim = checkpoint.get("action_dim")
+		if isinstance(ckpt_state_dim, int) and ckpt_state_dim != self.state_dim:
+			raise ValueError(
+				"Checkpoint state_dim mismatch: "
+				f"checkpoint={ckpt_state_dim}, current_agent={self.state_dim}. "
+				"Observation layout changed; retrain or load a checkpoint created "
+				"with the same state definition."
+			)
+		if isinstance(ckpt_action_dim, int) and ckpt_action_dim != self.action_dim:
+			raise ValueError(
+				"Checkpoint action_dim mismatch: "
+				f"checkpoint={ckpt_action_dim}, current_agent={self.action_dim}."
+			)
 
 		self.actor.load_state_dict(checkpoint["actor"])
 		self.critic1.load_state_dict(checkpoint["critic1"])
