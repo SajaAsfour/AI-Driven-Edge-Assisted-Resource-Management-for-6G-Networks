@@ -830,7 +830,7 @@ def predict_resource_blocks_from_input(
                 env_seed = env_cfg.get("seed", env_seed)
                 env_rb_min = env_cfg.get("rb_min", env_rb_min)
 
-        env_kwargs: Dict[str, Any] = {"service": env_service, "seed": env_seed}
+        env_kwargs: Dict[str, Any] = {"service": env_service, "seed": env_seed, "silent": True}
         if env_rb_min is not None:
             env_kwargs["rb_min"] = env_rb_min
 
@@ -897,8 +897,9 @@ def run_sac_custom_inference_mode() -> None:
     sample_input = {
         "traffic_users_per_tti": {
             "voip": [
-                [40, 40, 40, 40, 45, 45, 45, 45],
                 [5, 5, 5, 5, 5, 5, 5, 5],
+                [40, 40, 40, 40, 45, 45, 45, 45],
+
             ],
             "cbr": [
                 [50, 50, 55, 50, 50, 55, 55, 55],

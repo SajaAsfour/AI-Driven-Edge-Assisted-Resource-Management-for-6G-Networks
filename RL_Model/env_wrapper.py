@@ -67,6 +67,7 @@ class NetworkSACEnv:
 		rb_max: Optional[int] = None,
 		seed: Optional[int] = None,
 		log_random_profile_each_step: bool = False,
+		silent: bool = False,
 	) -> None:
 		"""
 		Initialize the RL wrapper.
@@ -105,6 +106,7 @@ class NetworkSACEnv:
 		self.traffic_profile_mode: str = self._normalize_profile_mode(traffic_profile_mode)
 		self.fixed_profile_name: str = str(fixed_profile_name)
 		self.log_random_profile_each_step: bool = bool(log_random_profile_each_step)
+		self.silent: bool = bool(silent)
 		self.ue_profiles: Dict[str, list[int]] = get_default_profiles()
 		if not self.ue_profiles:
 			raise ValueError("UE profiles cannot be empty")
@@ -158,10 +160,12 @@ class NetworkSACEnv:
 				m=self.m,
 				n=self.n,
 			)
-			print(f"Using fixed UE profile: {profile_name} -> {self._current_profile_values}")
+			if not self.silent:
+				print(f"Using fixed UE profile: {profile_name} -> {self._current_profile_values}")
 		else:
 			self._traffic_by_dti = None
-			print("Using dynamic random UE profiles (changes every step)")
+			if not self.silent:
+				print("Using dynamic random UE profiles (changes every step)")
 
 		self._dti_cursor: int = 0
 		self._done: bool = False
