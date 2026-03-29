@@ -13,6 +13,9 @@ class EnvironmentConfig:
 	"""Environment wrapper settings for `NetworkSACEnv`."""
 
 	service: str = "voip"
+	traffic_profile_mode: str = "fixed"
+	fixed_profile_name: str = "profile_1"
+	log_random_profile_each_step: bool = False
 	seed: Optional[int] = 42
 	rb_min: int = 1
 	rb_max: Optional[int] = None
@@ -66,8 +69,7 @@ class EvaluationConfig:
 	evaluation_interval: int = 20
 	deterministic: bool = True
 	episodes: int = 5
-	max_steps_per_episode: int = 128
-
+	max_steps_per_episode: int = 200
 
 @dataclass(slots=True)
 class CheckpointConfig:
@@ -92,6 +94,9 @@ class SACConfig:
 		
 		return {
 			"service": self.environment.service,
+			"traffic_profile_mode": self.environment.traffic_profile_mode,
+			"fixed_profile_name": self.environment.fixed_profile_name,
+			"log_random_profile_each_step": self.environment.log_random_profile_each_step,
 			"max_episodes": self.training.max_episodes,
 			"max_steps_per_episode": self.training.max_steps_per_episode,
 			"batch_size": self.training.batch_size,

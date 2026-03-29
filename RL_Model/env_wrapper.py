@@ -13,6 +13,13 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from main import load_configuration, load_metric_matrices
 from Network_Model.src.NetworkModel import NetworkModel
+from RL_Model.traffic_profiles import (
+	build_dti_from_profile,
+	build_traffic_matrix_from_profile,
+	get_default_profiles,
+	get_profile_or_raise,
+	validate_dti_values_in_profile,
+)
 
 
 Number = Union[int, float]
@@ -25,7 +32,7 @@ class NetworkSACEnv:
 	- single continuous SAC action mapped to an integer RB allocation
 
 	Notes on integration with current simulation:
-	- Traffic demand per DTI comes from existing input files.
+	- Traffic demand per DTI is profile-driven (fixed profile or per-step random profile).
 	- The wrapper does NOT re-implement network logic.
 	  It calls `NetworkModel.process_dti(...)` and uses the returned reward.
 	- The action controls RB allocation for the selected service in current DTI,
@@ -49,6 +56,8 @@ class NetworkSACEnv:
 	def __init__(
 		self,
 		service: str = "voip",
+		traffic_profile_mode: str = "fixed",
+		fixed_profile_name: str = "profile_1",
 		config_path: Optional[Union[str, Path]] = None,
 		input_path: Optional[Union[str, Path]] = None,
 		metric_file: Optional[Union[str, Path]] = None,
@@ -57,6 +66,7 @@ class NetworkSACEnv:
 		rb_min: int = 0,
 		rb_max: Optional[int] = None,
 		seed: Optional[int] = None,
+		log_random_profile_each_step: bool = False,
 	) -> None:
 		"""
 		Initialize the RL wrapper.
@@ -74,6 +84,7 @@ class NetworkSACEnv:
 		"""
 		if seed is not None:
 			np.random.seed(seed)
+		self._rng = np.random.default_rng(seed)
 
 		self.service: str = self._normalize_service(service)
 
@@ -90,6 +101,18 @@ class NetworkSACEnv:
 		self.k: int = int(self.config["k"])
 		self.c: float = float(self.config["c"])
 		self.lambda_reward: float = float(self.config["lambda_reward"])
+
+		self.traffic_profile_mode: str = self._normalize_profile_mode(traffic_profile_mode)
+		self.fixed_profile_name: str = str(fixed_profile_name)
+		self.log_random_profile_each_step: bool = bool(log_random_profile_each_step)
+		self.ue_profiles: Dict[str, list[int]] = get_default_profiles()
+		if not self.ue_profiles:
+			raise ValueError("UE profiles cannot be empty")
+
+		self._profile_names: list[str] = list(self.ue_profiles.keys())
+		self._traffic_by_dti: Optional[list[list[int]]] = None
+		self._current_profile_name: Optional[str] = None
+		self._current_profile_values: Optional[list[int]] = None
 
 		self.action_low = float(action_low)
 		self.action_high = float(action_high)
@@ -126,7 +149,19 @@ class NetworkSACEnv:
 		self.model.set_metric_matrices(self.service, metric_data)
 		self.model.set_service(self.service)
 
-		self._traffic_by_dti = self.config["traffic_users_per_tti"][self.service]
+		if self.traffic_profile_mode == "fixed":
+			profile_name, profile_values = get_profile_or_raise(self.ue_profiles, self.fixed_profile_name)
+			self._current_profile_name = profile_name
+			self._current_profile_values = list(profile_values)
+			self._traffic_by_dti = build_traffic_matrix_from_profile(
+				profile_values=self._current_profile_values,
+				m=self.m,
+				n=self.n,
+			)
+			print(f"Using fixed UE profile: {profile_name} -> {self._current_profile_values}")
+		else:
+			self._traffic_by_dti = None
+			print("Using dynamic random UE profiles (changes every step)")
 
 		self._dti_cursor: int = 0
 		self._done: bool = False
@@ -153,6 +188,8 @@ class NetworkSACEnv:
 		self._last_reward = 0.0
 		self._last_rb_norm = 0.0
 		self._last_cdf_y = np.zeros(self.k, dtype=np.float32)
+		self._current_profile_name = self._current_profile_name if self.traffic_profile_mode == "fixed" else None
+		self._current_profile_values = self._current_profile_values if self.traffic_profile_mode == "fixed" else None
 		return self.get_state()
 
 	def step(self, action: Union[Number, np.ndarray, list, tuple]) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
@@ -171,7 +208,31 @@ class NetworkSACEnv:
 		if self._done:
 			raise RuntimeError("Episode is done. Call reset() before step().")
 
-		traffic_dti = self._traffic_by_dti[self._dti_cursor]
+		if self.traffic_profile_mode == "fixed":
+			if self._traffic_by_dti is None:
+				raise ValueError("Fixed profile traffic matrix was not initialized")
+			traffic_dti = self._traffic_by_dti[self._dti_cursor]
+			if self._current_profile_values is None or self._current_profile_name is None:
+				raise ValueError("Fixed profile metadata is missing")
+		else:
+			profile_name = str(self._rng.choice(self._profile_names))
+			profile_values = [int(v) for v in self.ue_profiles[profile_name]]
+			traffic_dti = build_dti_from_profile(profile_values=profile_values, n=self.n)
+			self._current_profile_name = profile_name
+			self._current_profile_values = profile_values
+			if self.log_random_profile_each_step:
+				print(
+					f"Step {self._dti_cursor + 1} -> {profile_name} -> {profile_values}"
+				)
+
+		if self._current_profile_values is None or self._current_profile_name is None:
+			raise ValueError("Profile data is missing for current step")
+		validate_dti_values_in_profile(
+			dti=traffic_dti,
+			profile_values=self._current_profile_values,
+			n=self.n,
+		)
+
 		rb_alloc = self._action_to_rb(action)
 		rb_data = [rb_alloc] * self.n
 
@@ -202,6 +263,10 @@ class NetworkSACEnv:
 			"dti_index": int(dti_result.dti_index),
 			"cursor": int(self._dti_cursor),
 			"rb_alloc": int(rb_alloc),
+			"profile_mode": self.traffic_profile_mode,
+			"profile_name": self._current_profile_name,
+			"profile_values": list(self._current_profile_values),
+			"traffic_dti": list(traffic_dti),
 			"beta_current": float(dti_result.beta_result.beta_current),
 			"beta_cumulative": float(dti_result.beta_result.beta_cumulative),
 			"reward_current": float(dti_result.reward_current),
@@ -400,3 +465,13 @@ class NetworkSACEnv:
 				"service must be one of: voip, cbr, streaming, videostream"
 			)
 		return cls.SERVICE_ALIASES[key]
+
+	@staticmethod
+	def _normalize_profile_mode(mode: str) -> str:
+		"""Normalize traffic profile mode to one of: fixed, random."""
+		if not isinstance(mode, str):
+			raise ValueError("traffic_profile_mode must be a string")
+		key = mode.strip().lower()
+		if key not in {"fixed", "random"}:
+			raise ValueError("traffic_profile_mode must be one of: fixed, random")
+		return key

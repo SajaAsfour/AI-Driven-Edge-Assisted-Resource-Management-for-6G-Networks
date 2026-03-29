@@ -4,7 +4,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 BASE_DIR = Path(__file__).parent.resolve()
@@ -13,6 +13,7 @@ if str(NETWORK_MODEL_DIR) not in sys.path:
     sys.path.insert(0, str(NETWORK_MODEL_DIR))
 
 from Network_Model.src.NetworkModel import NetworkModel
+from RL_Model.traffic_profiles import get_default_profiles, get_profile_or_raise
 Number = Union[int, float]
 
 
@@ -392,6 +393,86 @@ def choose_service_for_rl() -> str:
         print("Invalid choice. Please enter 1, 2, or 3.")
 
 
+def choose_traffic_profile_mode_for_rl() -> str:
+    print("\nTraffic profile mode:")
+    print("  1. Fixed profile")
+    print("  2. Random profile")
+    while True:
+        choice = input("Enter profile mode choice (1-2): ").strip()
+        if choice == "1":
+            return "fixed"
+        if choice == "2":
+            return "random"
+        print("Invalid choice. Please enter 1 or 2.")
+
+
+def choose_fixed_profile_name() -> str:
+    profiles = get_default_profiles()
+    print("\nAvailable fixed UE profiles:")
+    ordered = list(profiles.items())
+    for idx, (name, values) in enumerate(ordered, start=1):
+        print(f"  {idx}. {name} -> {values}")
+
+    while True:
+        raw = input(f"Select profile (1-{len(ordered)}): ").strip()
+        if not raw.isdigit():
+            print("Invalid selection. Please enter a number.")
+            continue
+        idx = int(raw)
+        if idx < 1 or idx > len(ordered):
+            print(f"Invalid selection. Please enter a number from 1 to {len(ordered)}.")
+            continue
+        profile_name = ordered[idx - 1][0]
+        _, values = get_profile_or_raise(profiles, profile_name)
+        print(f"Selected fixed profile: {profile_name} -> {values}")
+        return profile_name
+
+
+def choose_profile_settings_for_rl() -> Tuple[str, Optional[str]]:
+    mode = choose_traffic_profile_mode_for_rl()
+    if mode == "fixed":
+        fixed_profile = choose_fixed_profile_name()
+        return mode, fixed_profile
+    print("Random profile mode selected")
+    return mode, None
+
+
+def choose_evaluation_mode() -> str:
+    print("\nEvaluation mode:")
+    print("  1. Use original training profile settings")
+    print("  2. Override evaluation profile settings")
+    while True:
+        choice = input("Enter evaluation mode (1-2): ").strip()
+        if choice == "1":
+            return "original"
+        if choice == "2":
+            return "override"
+        print("Invalid choice. Please enter 1 or 2.")
+
+
+def choose_checkpoint_for_evaluation(checkpoint_dir: Path) -> Optional[Path]:
+    candidates = sorted(checkpoint_dir.glob("sac_*_final.pt"))
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+
+    print("\nSelect checkpoint to evaluate:")
+    for idx, path in enumerate(candidates, start=1):
+        print(f"  {idx}. {path.name}")
+
+    while True:
+        raw = input(f"Enter checkpoint choice (1-{len(candidates)}): ").strip()
+        if not raw.isdigit():
+            print("Invalid choice. Please enter a number.")
+            continue
+        idx = int(raw)
+        if idx < 1 or idx > len(candidates):
+            print(f"Invalid choice. Please enter a number from 1 to {len(candidates)}.")
+            continue
+        return candidates[idx - 1]
+
+
 def run_networkmodel(config: Dict[str, Any], config_dir: Path, logger: logging.Logger) -> None:
     model = NetworkModel(
         n=config['n'],
@@ -548,8 +629,12 @@ def run_sac_training_mode() -> None:
 
     
     service = choose_service_for_rl()
+    profile_mode, fixed_profile_name = choose_profile_settings_for_rl()
+
     cfg = get_default_config()
     cfg.environment.service = service
+    cfg.environment.traffic_profile_mode = profile_mode
+    cfg.environment.fixed_profile_name = fixed_profile_name or cfg.environment.fixed_profile_name
     cfg.training.verbose = True
 
     print("\nStarting SAC training (config-driven)...")
@@ -576,14 +661,68 @@ def run_sac_evaluation_mode() -> None:
         print(f"ERROR: RL evaluation modules could not be imported: {e}")
         return
 
-   
-    service = choose_service_for_rl()
     cfg = get_default_config()
-    cfg.environment.service = service
 
     checkpoint_dir_cfg = Path(cfg.checkpoint.checkpoint_dir)
     checkpoint_dir = checkpoint_dir_cfg if checkpoint_dir_cfg.is_absolute() else BASE_DIR / checkpoint_dir_cfg
-    ckpt_path = checkpoint_dir / f"sac_{service}_final.pt"
+
+    ckpt_path = choose_checkpoint_for_evaluation(checkpoint_dir)
+    if ckpt_path is None:
+        print(f"ERROR: No checkpoint file found in: {checkpoint_dir}")
+        return
+
+    if not ckpt_path.exists():
+        print(f"ERROR: Checkpoint file not found: {ckpt_path}")
+        return
+
+    config_path = ckpt_path.with_name(f"{ckpt_path.stem}_config.json")
+    loaded_config: Dict[str, Any] = {}
+    if config_path.exists():
+        try:
+            loaded_config = load_config(config_path)
+            print(f"Loaded config from checkpoint: {config_path}")
+        except Exception as e:
+            print(f"WARNING: Failed to load checkpoint config, using fallbacks: {e}")
+            loaded_config = {}
+
+    env_cfg_raw = loaded_config.get("environment", {}) if isinstance(loaded_config, dict) else {}
+    env_cfg = env_cfg_raw if isinstance(env_cfg_raw, dict) else {}
+
+    inferred_service = ckpt_path.name
+    if inferred_service.startswith("sac_") and inferred_service.endswith("_final.pt"):
+        inferred_service = inferred_service[len("sac_"):-len("_final.pt")]
+
+    train_service = str(env_cfg.get("service", inferred_service)).strip().lower()
+    train_mode = str(env_cfg.get("traffic_profile_mode", "fixed")).strip().lower()
+    if train_mode not in {"fixed", "random"}:
+        train_mode = "fixed"
+    train_profile = str(env_cfg.get("fixed_profile_name", "profile_1"))
+    train_seed = env_cfg.get("seed", cfg.environment.seed)
+    train_rb_min = env_cfg.get("rb_min", cfg.environment.rb_min)
+
+    eval_mode = choose_evaluation_mode()
+
+    if eval_mode == "original":
+        selected_service = train_service
+        selected_mode = train_mode
+        selected_profile = train_profile
+        print("\nEvaluating using training profile settings:")
+        print(f"service = {selected_service}")
+        if selected_mode == "random":
+            print("mode = random (dynamic per step)")
+        else:
+            print("mode = fixed")
+            print(f"profile = {selected_profile}")
+    else:
+        selected_service = train_service
+        selected_mode, selected_profile = choose_profile_settings_for_rl()
+        print("\nEvaluating with overridden profile settings (service fixed from checkpoint):")
+        print(f"service = {selected_service}")
+        if selected_mode == "random":
+            print("mode = random (dynamic per step)")
+        else:
+            print("mode = fixed")
+            print(f"profile = {selected_profile}")
 
     eval_episodes = int(cfg.evaluation.episodes)
     eval_steps = int(cfg.evaluation.max_steps_per_episode)
@@ -592,31 +731,16 @@ def run_sac_evaluation_mode() -> None:
     if eval_steps <= 0:
         eval_steps = 1
 
-    if not ckpt_path.exists():
-        print(f"ERROR: Checkpoint file not found: {ckpt_path}")
-        return
-
     try:
-        env_service = service
-        env_seed = cfg.environment.seed
-        env_rb_min = cfg.environment.rb_min
-
-        config_path = ckpt_path.with_name(f"{ckpt_path.stem}_config.json")
-        if config_path.exists():
-            loaded_config = load_config(config_path)
-            env_cfg = loaded_config.get("environment", {})
-            if isinstance(env_cfg, dict):
-                env_service = env_cfg.get("service", env_service)
-                env_seed = env_cfg.get("seed", env_seed)
-                env_rb_min = env_cfg.get("rb_min", env_rb_min)
-            print(f"Loaded config from checkpoint: {config_path}")
-
         env_kwargs = {
-            "service": env_service,
-            "seed": env_seed,
+            "service": selected_service,
+            "traffic_profile_mode": selected_mode,
+            "seed": train_seed,
         }
-        if env_rb_min is not None:
-            env_kwargs["rb_min"] = env_rb_min
+        if selected_mode == "fixed":
+            env_kwargs["fixed_profile_name"] = selected_profile
+        if train_rb_min is not None:
+            env_kwargs["rb_min"] = train_rb_min
 
         env = NetworkSACEnv(**env_kwargs)
         state_dim = int(np.prod(env.observation_shape))
@@ -859,5 +983,3 @@ if __name__ == "__main__":
         else:
             break
     
-
-

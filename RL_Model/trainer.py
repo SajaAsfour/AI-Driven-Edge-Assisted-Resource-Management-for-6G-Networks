@@ -153,6 +153,12 @@ def train_sac(
 	save_interval = _from_config(config.checkpoint.save_interval, default_save_interval)
 	replay_capacity = _from_config(config.replay_buffer.capacity, default_replay_capacity)
 	rb_min = _from_config(config.environment.rb_min, default_rb_min)
+	traffic_profile_mode = _from_config(config.environment.traffic_profile_mode, "fixed")
+	fixed_profile_name = _from_config(config.environment.fixed_profile_name, "profile_1")
+	log_random_profile_each_step = _from_config(
+		config.environment.log_random_profile_each_step,
+		False,
+	)
 	checkpoint_dir = _from_config(config.checkpoint.checkpoint_dir, default_checkpoint_dir)
 	seed = _from_config(config.environment.seed, default_seed)
 	verbose = _from_config(config.training.verbose, default_verbose)
@@ -173,13 +179,22 @@ def train_sac(
 		raise ValueError("replay_capacity must be > 0")
 	if rb_min < 0:
 		raise ValueError("rb_min must be >= 0")
+	if traffic_profile_mode not in {"fixed", "random"}:
+		raise ValueError("traffic_profile_mode must be either 'fixed' or 'random'")
 
 	if seed is not None:
 		np.random.seed(seed)
 
 	NetworkSACEnv, SACAgent, ReplayBuffer = _import_rl_components()
 
-	env = NetworkSACEnv(service=service, seed=seed, rb_min=rb_min)
+	env = NetworkSACEnv(
+		service=service,
+		traffic_profile_mode=traffic_profile_mode,
+		fixed_profile_name=fixed_profile_name,
+		seed=seed,
+		rb_min=rb_min,
+		log_random_profile_each_step=log_random_profile_each_step,
+	)
 	state_dim = int(np.prod(env.observation_shape))
 	action_dim = int(np.prod(env.action_shape))
 
@@ -255,7 +270,7 @@ def train_sac(
 		episode_alpha_losses: list[float] = []
 		episode_entropy_values: list[float] = []
 
-		for _ in range(max_steps_per_episode):
+		for step_idx in range(max_steps_per_episode):
 			if total_steps < warmup_steps:
 				action = np.random.uniform(
 					low=env.action_bounds[0],
@@ -265,7 +280,16 @@ def train_sac(
 			else:
 				action = agent.select_action(state, evaluate=False)
 
-			next_state, reward, done, _ = env.step(action)
+			next_state, reward, done, info = env.step(action)
+			if verbose:
+				profile_mode = info.get("profile_mode")
+				profile_name = info.get("profile_name")
+				profile_values = info.get("profile_values")
+				dti_index = info.get("dti_index")
+				logger.info(
+					f"Step {step_idx + 1:03d} | DTI {int(dti_index) + 1:03d} | "
+					f"Profile Mode: {profile_mode} | Profile: {profile_name} -> {profile_values}"
+				)
 			replay_buffer.add(state, action, reward, next_state, done)
 			episode_reward += float(reward)
 			total_steps += 1
