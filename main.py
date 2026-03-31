@@ -5,6 +5,7 @@ import logging
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+import matplotlib.pyplot as plt
 import numpy as np
 
 BASE_DIR = Path(__file__).parent.resolve()
@@ -15,6 +16,78 @@ if str(NETWORK_MODEL_DIR) not in sys.path:
 from Network_Model.src.NetworkModel import NetworkModel
 from RL_Model.traffic_profiles import get_default_profiles, get_profile_or_raise
 Number = Union[int, float]
+
+
+def _safe_plot_float(value: Any) -> float:
+    """Return finite float value for plots, else NaN."""
+    try:
+        value_float = float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+    if not np.isfinite(value_float):
+        return float("nan")
+    return value_float
+
+
+def _safe_dti_index_for_plot(value: Any, fallback: int) -> int:
+    """Return a positive integer DTI index for plotting."""
+    try:
+        idx = int(value)
+    except (TypeError, ValueError):
+        idx = int(fallback)
+    if idx <= 0:
+        idx = int(fallback)
+    return idx
+
+
+def save_episode_dti_plots(episode_data: List[Dict[str, Any]], output_dir: Path) -> int:
+    """Save per-episode Beta-vs-DTI and Reward-vs-DTI plots as PNG files."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    generated = 0
+
+    for entry in episode_data:
+        episode_idx = int(entry.get("episode", 0))
+        dti_indices = [int(x) for x in entry.get("dti_indices", [])]
+        beta_values = [float(x) for x in entry.get("beta_values", [])]
+        reward_values = [float(x) for x in entry.get("reward_values", [])]
+
+        if not dti_indices:
+            continue
+
+        min_len = min(len(dti_indices), len(beta_values), len(reward_values))
+        if min_len <= 0:
+            continue
+
+        x_vals = dti_indices[:min_len]
+        beta_vals = beta_values[:min_len]
+        reward_vals = reward_values[:min_len]
+
+        beta_file = output_dir / f"beta_vs_dti_episode_{episode_idx:03d}.png"
+        reward_file = output_dir / f"reward_vs_dti_episode_{episode_idx:03d}.png"
+
+        plt.figure(figsize=(8, 4.5))
+        plt.plot(x_vals, beta_vals, marker="o", linewidth=1.5)
+        plt.title(f"Beta vs DTI - Episode {episode_idx:03d}")
+        plt.xlabel("DTI Index")
+        plt.ylabel("beta_current")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(beta_file, dpi=150)
+        plt.close()
+        generated += 1
+
+        plt.figure(figsize=(8, 4.5))
+        plt.plot(x_vals, reward_vals, marker="o", linewidth=1.5)
+        plt.title(f"Reward vs DTI - Episode {episode_idx:03d}")
+        plt.xlabel("DTI Index")
+        plt.ylabel("reward_current")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(reward_file, dpi=150)
+        plt.close()
+        generated += 1
+
+    return generated
 
 
 
@@ -732,6 +805,19 @@ def run_sac_evaluation_mode() -> None:
         eval_steps = 1
 
     try:
+        checkpoint_dir_path = ckpt_path.parent
+        evaluation_log_path = checkpoint_dir_path / "evaluation.log"
+        evaluation_logger = logging.getLogger("sac_evaluation_standalone")
+        evaluation_logger.setLevel(logging.INFO)
+        evaluation_logger.propagate = False
+        for handler in list(evaluation_logger.handlers):
+            handler.flush()
+            handler.close()
+            evaluation_logger.removeHandler(handler)
+        eval_file_handler = logging.FileHandler(evaluation_log_path, mode='w', encoding='utf-8')
+        eval_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        evaluation_logger.addHandler(eval_file_handler)
+
         env_kwargs = {
             "service": selected_service,
             "traffic_profile_mode": selected_mode,
@@ -743,6 +829,10 @@ def run_sac_evaluation_mode() -> None:
             env_kwargs["rb_min"] = train_rb_min
 
         env = NetworkSACEnv(**env_kwargs)
+        if hasattr(env, "set_logger"):
+            env.set_logger(evaluation_logger)
+        if hasattr(env, "set_logging_context"):
+            env.set_logging_context("evaluation")
         state_dim = int(np.prod(env.observation_shape))
         action_dim = int(np.prod(env.action_shape))
 
@@ -753,22 +843,69 @@ def run_sac_evaluation_mode() -> None:
         return
 
     rewards: List[float] = []
+    evaluation_episode_dti_series: List[Dict[str, Any]] = []
+    evaluation_logger.info("Running deterministic SAC evaluation...")
     print("\nRunning deterministic SAC evaluation...")
     for episode in range(1, eval_episodes + 1):
+        evaluation_logger.info("=" * 50)
+        evaluation_logger.info(f"START EVALUATION EPISODE {episode}")
+        evaluation_logger.info("=" * 50)
+        if hasattr(env, "set_logger"):
+            env.set_logger(evaluation_logger)
+        if hasattr(env, "set_logging_context"):
+            env.set_logging_context("evaluation")
         state = env.reset()
         ep_reward = 0.0
-        for _ in range(eval_steps):
+        ep_dti_indices: List[int] = []
+        ep_beta_values: List[float] = []
+        ep_reward_values: List[float] = []
+        for step_idx in range(eval_steps):
             action = agent.select_action(state, evaluate=True)
             next_state, reward, done, info = env.step(action)
             ep_reward += float(reward)
+            ep_dti_indices.append(_safe_dti_index_for_plot(info.get("dti_index"), fallback=step_idx + 1))
+            ep_beta_values.append(_safe_plot_float(info.get("beta_current")))
+            ep_reward_values.append(_safe_plot_float(reward))
             state = next_state
             if done:
                 break
+        evaluation_episode_dti_series.append(
+            {
+                "episode": int(episode),
+                "dti_indices": ep_dti_indices,
+                "beta_values": ep_beta_values,
+                "reward_values": ep_reward_values,
+            }
+        )
         rewards.append(ep_reward)
+        ep_reward_log_value = float(ep_reward) if np.isfinite(ep_reward) else None
+        if ep_reward_log_value is None:
+            evaluation_logger.info(f"Episode {episode:03d} reward: None")
+        else:
+            evaluation_logger.info(f"Episode {episode:03d} reward: {ep_reward_log_value:.4f}")
         print(f"Episode {episode:03d} reward: {ep_reward:.4f}")
 
-    mean_reward = float(np.mean(rewards)) if rewards else 0.0
-    std_reward = float(np.std(rewards)) if rewards else 0.0
+    finite_rewards = [float(r) for r in rewards if np.isfinite(r)]
+    mean_reward = float(np.mean(finite_rewards)) if finite_rewards else 0.0
+    std_reward = float(np.std(finite_rewards)) if finite_rewards else 0.0
+    if finite_rewards:
+        evaluation_logger.info(f"Evaluation complete | mean reward: {mean_reward:.4f} | std: {std_reward:.4f}")
+    else:
+        evaluation_logger.info("Evaluation complete | mean reward: None | std: None")
+
+    evaluation_dti_plot_dir = checkpoint_dir_path / "evaluation_dti_plots" / selected_service
+    generated_eval_plots = save_episode_dti_plots(
+        episode_data=evaluation_episode_dti_series,
+        output_dir=evaluation_dti_plot_dir,
+    )
+    evaluation_logger.info(
+        f"Saved per-episode DTI evaluation plots: {generated_eval_plots} files at {evaluation_dti_plot_dir}"
+    )
+
+    for handler in list(evaluation_logger.handlers):
+        handler.flush()
+        handler.close()
+        evaluation_logger.removeHandler(handler)
     print(f"\nEvaluation complete | mean reward: {mean_reward:.4f} | std: {std_reward:.4f}")
 
 

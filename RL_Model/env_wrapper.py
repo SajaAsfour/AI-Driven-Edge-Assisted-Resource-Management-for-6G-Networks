@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 import sys
+import logging
 
 import numpy as np
 
@@ -174,6 +175,8 @@ class NetworkSACEnv:
 		self._last_reward: float = 0.0
 		self._last_rb_norm: float = 0.0
 		self._last_cdf_y: np.ndarray = np.zeros(self.k, dtype=np.float32)
+		self.logging_context: str = "training"
+		self._logger: Optional[logging.Logger] = None
 
 	def reset(self) -> np.ndarray:
 		"""
@@ -195,6 +198,105 @@ class NetworkSACEnv:
 		self._current_profile_name = self._current_profile_name if self.traffic_profile_mode == "fixed" else None
 		self._current_profile_values = self._current_profile_values if self.traffic_profile_mode == "fixed" else None
 		return self.get_state()
+
+	def set_logging_context(self, context: str) -> None:
+		"""Set step diagnostics logging context (training or evaluation)."""
+		context_str = str(context).strip().lower()
+		if context_str not in {"training", "evaluation"}:
+			raise ValueError("context must be either 'training' or 'evaluation'")
+		self.logging_context = context_str
+
+	def set_logger(self, logger: Optional[logging.Logger]) -> None:
+		"""Attach logger used for per-step diagnostics in step()."""
+		if logger is not None and not isinstance(logger, logging.Logger):
+			raise TypeError("logger must be an instance of logging.Logger or None")
+		self._logger = logger
+
+	def _safe_numeric_for_log(self, value: Any) -> Optional[float]:
+		"""Return finite float value for logging, otherwise None."""
+		try:
+			value_float = float(value)
+		except (TypeError, ValueError):
+			return None
+		if not np.isfinite(value_float):
+			return None
+		return value_float
+
+	@staticmethod
+	def _format_log_value(
+		value: Optional[float],
+		decimals: int = 4,
+		integer_if_whole: bool = False,
+	) -> str:
+		if value is None:
+			return "None"
+		if integer_if_whole and float(value).is_integer():
+			return str(int(value))
+		return f"{float(value):.{decimals}f}"
+
+	def _log_step_reward_diagnostics(
+		self,
+		dti_index: int,
+		rb_used: Number,
+		beta_current: Number,
+		reward_current: Number,
+		done: bool,
+	) -> None:
+		"""Emit detailed reward diagnostics for every environment step."""
+		logger = self._logger
+		if logger is None:
+			logger = logging.getLogger()
+
+		beta_val = self._safe_numeric_for_log(beta_current)
+		rb_used_val = self._safe_numeric_for_log(rb_used)
+		c_val = self._safe_numeric_for_log(self.c)
+		lambda_val = self._safe_numeric_for_log(self.lambda_reward)
+		reward_val = self._safe_numeric_for_log(reward_current)
+
+		resource_term_val: Optional[float] = None
+		if (
+			lambda_val is not None
+			and c_val is not None
+			and rb_used_val is not None
+			and c_val != 0.0
+		):
+			resource_term_val = self._safe_numeric_for_log(
+				lambda_val * ((c_val - rb_used_val) / c_val)
+			)
+
+		logger.info("----------------------------------------")
+		logger.info(f"Context: {self.logging_context}")
+		logger.info(f"DTI Index: {int(dti_index)}")
+		logger.info(f"Service: {self.service}")
+		logger.info("")
+		logger.info(f"beta_current = {self._format_log_value(beta_val, decimals=4)}")
+		logger.info(f"rb_used = {self._format_log_value(rb_used_val, decimals=4, integer_if_whole=True)}")
+		logger.info(f"C = {self._format_log_value(c_val, decimals=4, integer_if_whole=True)}")
+		logger.info(f"lambda_reward = {self._format_log_value(lambda_val, decimals=4)}")
+		logger.info("")
+		logger.info(
+			"resource_term = "
+			f"{self._format_log_value(lambda_val, decimals=4)} * "
+			f"(({self._format_log_value(c_val, decimals=4, integer_if_whole=True)} - "
+			f"{self._format_log_value(rb_used_val, decimals=4, integer_if_whole=True)}) / "
+			f"{self._format_log_value(c_val, decimals=4, integer_if_whole=True)}) = "
+			f"{self._format_log_value(resource_term_val, decimals=4)}"
+		)
+		logger.info("")
+		logger.info("reward_current = -beta_current + lambda_reward * ((C - rb_used) / C)")
+		logger.info(
+			"reward_current = "
+			f"-{self._format_log_value(beta_val, decimals=4)} + "
+			f"{self._format_log_value(resource_term_val, decimals=4)}"
+		)
+		logger.info(f"reward_current = {self._format_log_value(reward_val, decimals=4)}")
+		logger.info("")
+		logger.info("Step Summary:")
+		logger.info(f"- beta_current: {self._format_log_value(beta_val, decimals=4)}")
+		logger.info(f"- rb_used: {self._format_log_value(rb_used_val, decimals=4, integer_if_whole=True)}")
+		logger.info(f"- reward_current: {self._format_log_value(reward_val, decimals=4)}")
+		logger.info(f"- done: {bool(done)}")
+		logger.info("----------------------------------------")
 
 	def step(self, action: Union[Number, np.ndarray, list, tuple]) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
 		"""
@@ -260,10 +362,18 @@ class NetworkSACEnv:
 
 		self._dti_cursor += 1
 		self._done = self._dti_cursor >= self.m
+		self._log_step_reward_diagnostics(
+			dti_index=int(dti_result.dti_index),
+			rb_used=rb_alloc,
+			beta_current=dti_result.beta_result.beta_current,
+			reward_current=dti_result.reward_current,
+			done=self._done,
+		)
 
 		next_state = self.get_state()
 		info = {
 			"service": self.service,
+			"logging_context": self.logging_context,
 			"dti_index": int(dti_result.dti_index),
 			"cursor": int(self._dti_cursor),
 			"rb_alloc": int(rb_alloc),

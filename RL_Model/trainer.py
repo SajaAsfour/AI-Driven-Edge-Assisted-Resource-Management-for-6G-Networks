@@ -7,6 +7,7 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, TYPE_CHECKING, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 if TYPE_CHECKING:
@@ -81,20 +82,194 @@ def _import_rl_components() -> tuple[Any, Any, Any]:
 	return NetworkSACEnv, SACAgent, ReplayBuffer
 
 
-def _run_evaluation_episode(env: Any, agent: Any, max_steps: int) -> float:
-	"""Run one deterministic evaluation episode and return total reward."""
-	state = env.reset()
-	episode_reward = 0.0
+def _build_file_logger(name: str, file_path: Path) -> logging.Logger:
+	"""Create an isolated file logger with a fresh handler."""
+	logger = logging.getLogger(name)
+	logger.setLevel(logging.INFO)
+	logger.propagate = False
+	for handler in list(logger.handlers):
+		handler.flush()
+		handler.close()
+		logger.removeHandler(handler)
+	file_handler = logging.FileHandler(file_path, mode="w", encoding="utf-8")
+	file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+	logger.addHandler(file_handler)
+	return logger
 
-	for _ in range(max_steps):
-		action = agent.select_action(state, evaluate=True)
-		next_state, reward, done, _ = env.step(action)
-		episode_reward += float(reward)
-		state = next_state
-		if done:
-			break
 
-	return float(episode_reward)
+def _safe_float_for_log(value: Any) -> Optional[float]:
+	"""Return finite float value for logging, otherwise None."""
+	try:
+		value_float = float(value)
+	except (TypeError, ValueError):
+		return None
+	if not np.isfinite(value_float):
+		return None
+	return value_float
+
+
+def _format_optional_float(value: Optional[float], decimals: int = 4) -> str:
+	if value is None:
+		return "None"
+	return f"{float(value):.{decimals}f}"
+
+
+def _safe_plot_float(value: Any) -> float:
+	"""Return finite float value for plots, else NaN."""
+	try:
+		value_float = float(value)
+	except (TypeError, ValueError):
+		return float("nan")
+	if not np.isfinite(value_float):
+		return float("nan")
+	return value_float
+
+
+def _safe_dti_index_for_plot(value: Any, fallback: int) -> int:
+	"""Return positive integer DTI index for plotting."""
+	try:
+		idx = int(value)
+	except (TypeError, ValueError):
+		idx = int(fallback)
+	if idx <= 0:
+		idx = int(fallback)
+	return idx
+
+
+def _save_episode_dti_plots(
+	episode_data: list[Dict[str, Any]],
+	output_dir: Path,
+) -> int:
+	"""Save per-episode Beta-vs-DTI and Reward-vs-DTI plots."""
+	output_dir.mkdir(parents=True, exist_ok=True)
+	generated = 0
+
+	for episode_entry in episode_data:
+		episode_idx = int(episode_entry.get("episode", 0))
+		dti_indices = [int(x) for x in episode_entry.get("dti_indices", [])]
+		beta_values = [float(x) for x in episode_entry.get("beta_values", [])]
+		reward_values = [float(x) for x in episode_entry.get("reward_values", [])]
+
+		if not dti_indices:
+			continue
+
+		min_len = min(len(dti_indices), len(beta_values), len(reward_values))
+		if min_len <= 0:
+			continue
+
+		x_vals = dti_indices[:min_len]
+		beta_vals = beta_values[:min_len]
+		reward_vals = reward_values[:min_len]
+
+		beta_path = output_dir / f"beta_vs_dti_episode_{episode_idx:03d}.png"
+		reward_path = output_dir / f"reward_vs_dti_episode_{episode_idx:03d}.png"
+
+		plt.figure(figsize=(8, 4.5))
+		plt.plot(x_vals, beta_vals, marker="o", linewidth=1.5)
+		plt.title(f"Beta vs DTI - Episode {episode_idx:03d}")
+		plt.xlabel("DTI Index")
+		plt.ylabel("beta_current")
+		plt.grid(True)
+		plt.tight_layout()
+		plt.savefig(beta_path, dpi=150)
+		plt.close()
+		generated += 1
+
+		plt.figure(figsize=(8, 4.5))
+		plt.plot(x_vals, reward_vals, marker="o", linewidth=1.5)
+		plt.title(f"Reward vs DTI - Episode {episode_idx:03d}")
+		plt.xlabel("DTI Index")
+		plt.ylabel("reward_current")
+		plt.grid(True)
+		plt.tight_layout()
+		plt.savefig(reward_path, dpi=150)
+		plt.close()
+		generated += 1
+
+	return generated
+
+
+def _run_evaluation(
+	env: Any,
+	agent: Any,
+	max_steps: int,
+	episodes: int,
+	evaluation_logger: logging.Logger,
+) -> tuple[float, list[Dict[str, Any]]]:
+	"""Run deterministic evaluation episodes with full per-step diagnostics logging."""
+	if hasattr(env, "set_logger"):
+		env.set_logger(evaluation_logger)
+	if hasattr(env, "set_logging_context"):
+		env.set_logging_context("evaluation")
+
+	episode_rewards: list[float] = []
+	episode_dti_series: list[Dict[str, Any]] = []
+	evaluation_logger.info("Running deterministic SAC evaluation...")
+
+	for eval_episode_idx in range(1, episodes + 1):
+		evaluation_logger.info("=" * 50)
+		evaluation_logger.info(f"START EVALUATION EPISODE {eval_episode_idx}")
+		evaluation_logger.info("=" * 50)
+		if hasattr(env, "set_logger"):
+			env.set_logger(evaluation_logger)
+		if hasattr(env, "set_logging_context"):
+			env.set_logging_context("evaluation")
+
+		state = env.reset()
+		episode_reward = 0.0
+		episode_dti_indices: list[int] = []
+		episode_beta_values: list[float] = []
+		episode_reward_values: list[float] = []
+		for step_idx in range(max_steps):
+			action = agent.select_action(state, evaluate=True)
+			next_state, reward, done, _ = env.step(action)
+			episode_reward += float(reward)
+			step_info = _ if isinstance(_, dict) else {}
+			episode_dti_indices.append(
+				_safe_dti_index_for_plot(step_info.get("dti_index"), fallback=step_idx + 1)
+			)
+			episode_beta_values.append(_safe_plot_float(step_info.get("beta_current")))
+			episode_reward_values.append(_safe_plot_float(reward))
+			state = next_state
+			if done:
+				break
+
+		episode_rewards.append(float(episode_reward))
+		episode_dti_series.append(
+			{
+				"episode": int(eval_episode_idx),
+				"dti_indices": episode_dti_indices,
+				"beta_values": episode_beta_values,
+				"reward_values": episode_reward_values,
+			}
+		)
+		episode_reward_safe = _safe_float_for_log(episode_reward)
+		evaluation_logger.info(
+			f"Episode {eval_episode_idx:03d} reward: "
+			f"{_format_optional_float(episode_reward_safe, decimals=4)}"
+		)
+
+	finite_rewards = [float(v) for v in episode_rewards if np.isfinite(v)]
+	mean_reward: Optional[float]
+	std_reward: Optional[float]
+	if finite_rewards:
+		mean_reward = float(np.mean(finite_rewards))
+		std_reward = float(np.std(finite_rewards))
+	else:
+		mean_reward = None
+		std_reward = None
+
+	evaluation_logger.info(
+		"Evaluation complete | mean reward: "
+		f"{_format_optional_float(_safe_float_for_log(mean_reward), decimals=4)} | "
+		f"std: {_format_optional_float(_safe_float_for_log(std_reward), decimals=4)}"
+	)
+
+	if hasattr(env, "set_logging_context"):
+		env.set_logging_context("training")
+
+	mean_reward_out = float(mean_reward) if mean_reward is not None else float("nan")
+	return mean_reward_out, episode_dti_series
 
 
 def train_sac(
@@ -121,6 +296,7 @@ def train_sac(
 	default_save_interval = 25
 	default_replay_capacity = 100_000
 	default_rb_min = 1
+	default_evaluation_episodes = 5
 	default_checkpoint_dir: Union[str, Path] = "RL_Model/checkpoints"
 	default_seed: Optional[int] = 42
 	default_verbose = True
@@ -159,6 +335,8 @@ def train_sac(
 		config.environment.log_random_profile_each_step,
 		False,
 	)
+	evaluation_episodes = _from_config(config.evaluation.episodes, default_evaluation_episodes)
+	evaluation_max_steps = _from_config(config.evaluation.max_steps_per_episode, max_steps_per_episode)
 	checkpoint_dir = _from_config(config.checkpoint.checkpoint_dir, default_checkpoint_dir)
 	seed = _from_config(config.environment.seed, default_seed)
 	verbose = _from_config(config.training.verbose, default_verbose)
@@ -173,6 +351,10 @@ def train_sac(
 		raise ValueError("warmup_steps must be >= 0")
 	if evaluation_interval <= 0:
 		raise ValueError("evaluation_interval must be > 0")
+	if evaluation_episodes <= 0:
+		raise ValueError("evaluation_episodes must be > 0")
+	if evaluation_max_steps <= 0:
+		raise ValueError("evaluation_max_steps must be > 0")
 	if save_interval <= 0:
 		raise ValueError("save_interval must be > 0")
 	if replay_capacity <= 0:
@@ -195,6 +377,8 @@ def train_sac(
 		rb_min=rb_min,
 		log_random_profile_each_step=log_random_profile_each_step,
 	)
+	if hasattr(env, "set_logging_context"):
+		env.set_logging_context("training")
 	state_dim = int(np.prod(env.observation_shape))
 	action_dim = int(np.prod(env.action_shape))
 
@@ -230,15 +414,15 @@ def train_sac(
 	checkpoint_path = Path(checkpoint_dir)
 	checkpoint_path.mkdir(parents=True, exist_ok=True)
 
-	log_path = checkpoint_path / "training.log"
-	logger = logging.getLogger(f"sac_training_{service}")
-	logger.setLevel(logging.INFO)
-	logger.propagate = False
-	for h in list(logger.handlers):
-		logger.removeHandler(h)
-	file_handler = logging.FileHandler(log_path, mode="w", encoding="utf-8")
-	file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-	logger.addHandler(file_handler)
+	training_log_path = checkpoint_path / "training.log"
+	evaluation_log_path = checkpoint_path / "evaluation.log"
+	training_logger = _build_file_logger(f"sac_training_{service}", training_log_path)
+	evaluation_logger = _build_file_logger(f"sac_evaluation_{service}", evaluation_log_path)
+
+	if hasattr(env, "set_logger"):
+		env.set_logger(training_logger)
+	if hasattr(env, "set_logging_context"):
+		env.set_logging_context("training")
 
 	history: Dict[str, list] = {
 		"episode_rewards": [],
@@ -254,6 +438,7 @@ def train_sac(
 	}
 	history["service"] = service
 	saved_checkpoints: list[str] = []
+	latest_evaluation_episode_dti_series: list[Dict[str, Any]] = []
 
 	total_steps = 0
 
@@ -286,7 +471,7 @@ def train_sac(
 				profile_name = info.get("profile_name")
 				profile_values = info.get("profile_values")
 				dti_index = info.get("dti_index")
-				logger.info(
+				training_logger.info(
 					f"Step {step_idx + 1:03d} | DTI {int(dti_index) + 1:03d} | "
 					f"Profile Mode: {profile_mode} | Profile: {profile_name} -> {profile_values}"
 				)
@@ -354,7 +539,7 @@ def train_sac(
 		history["entropy"].append(mean_entropy)
 
 		if verbose:
-			logger.info(
+			training_logger.info(
 				f"Episode {episode:04d} | "
 				f"Reward: {episode_reward:10.4f} | "
 				f"Actor Loss: {mean_actor_loss:10.6f} | "
@@ -366,14 +551,26 @@ def train_sac(
 			)
 
 		if episode % evaluation_interval == 0:
-			eval_reward = _run_evaluation_episode(
+			eval_reward, eval_episode_series = _run_evaluation(
 				env=env,
 				agent=agent,
-				max_steps=max_steps_per_episode,
+				max_steps=evaluation_max_steps,
+				episodes=evaluation_episodes,
+				evaluation_logger=evaluation_logger,
 			)
+			# Keep plots aligned to configured evaluation episodes (e.g., 5),
+			# rather than accumulating all periodic evaluation runs.
+			latest_evaluation_episode_dti_series = eval_episode_series
+			if hasattr(env, "set_logger"):
+				env.set_logger(training_logger)
+			if hasattr(env, "set_logging_context"):
+				env.set_logging_context("training")
 			history["evaluation_rewards"].append((episode, eval_reward))
 			if verbose:
-				logger.info(f"Evaluation @ episode {episode}: reward={eval_reward:.4f}")
+				evaluation_logger.info(
+					f"Evaluation trigger at training episode {episode}: "
+					f"mean reward={_format_optional_float(_safe_float_for_log(eval_reward), decimals=4)}"
+				)
 
 		if episode % save_interval == 0:
 			episode_ckpt = checkpoint_path / f"sac_{service}_episode_{episode:04d}.pt"
@@ -382,7 +579,7 @@ def train_sac(
 			save_config(config, episode_cfg)
 			saved_checkpoints.append(str(episode_ckpt))
 			if verbose:
-				logger.info(f"Saved checkpoint: {episode_ckpt}")
+				training_logger.info(f"Saved checkpoint: {episode_ckpt}")
 
 	final_ckpt = checkpoint_path / f"sac_{service}_final.pt"
 	agent.save(final_ckpt)
@@ -391,10 +588,17 @@ def train_sac(
 	saved_checkpoints.append(str(final_ckpt))
 
 	if verbose:
-		logger.info(f"Training complete. Final checkpoint: {final_ckpt}")
+		training_logger.info(f"Training complete. Final checkpoint: {final_ckpt}")
 
 	metrics_path = checkpoint_path / "training_metrics.json"
 	save_training_metrics(history, metrics_path)
+
+	evaluation_dti_plot_dir = checkpoint_path / "evaluation_dti_plots" / service
+	evaluation_plots_count = _save_episode_dti_plots(latest_evaluation_episode_dti_series, evaluation_dti_plot_dir)
+	if verbose:
+		training_logger.info(
+			f"Saved per-episode DTI evaluation plots: {evaluation_plots_count} files at {evaluation_dti_plot_dir}"
+		)
 
 
 	try:
@@ -410,17 +614,18 @@ def train_sac(
 			show=False,
 		)
 		if verbose:
-			logger.info(
+			training_logger.info(
 				f"Saved training metrics: {metrics_path} | "
 				f"Generated plots: {len(generated_plots)}"
 			)
 	except Exception as plot_error:
-		logger.warning(f"Metrics plotting failed: {plot_error}")
+		training_logger.warning(f"Metrics plotting failed: {plot_error}")
 
-	for h in list(logger.handlers):
-		h.flush()
-		h.close()
-		logger.removeHandler(h)
+	for logger in (training_logger, evaluation_logger):
+		for h in list(logger.handlers):
+			h.flush()
+			h.close()
+			logger.removeHandler(h)
 
 	return {
 		"agent": agent,
