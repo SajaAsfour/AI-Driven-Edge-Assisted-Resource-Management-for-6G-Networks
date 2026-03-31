@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -450,20 +451,42 @@ def get_main_execution_choice() -> str:
         print("Invalid choice. Please enter 1, 2, 3, 4, or 5.")
 
 
-def choose_service_for_rl() -> str:
+def choose_service_for_rl() -> Optional[str]:
     print("\nSelect RL service:")
     print("  1. VoIP")
     print("  2. CBR")
     print("  3. Video Streaming")
+    print("  4. Back to Main Menu")
     while True:
-        choice = input("Enter service choice (1-3): ").strip()
+        choice = input("Enter service choice (1-4): ").strip()
         if choice == "1":
             return "voip"
         if choice == "2":
             return "cbr"
         if choice == "3":
             return "streaming"
-        print("Invalid choice. Please enter 1, 2, or 3.")
+        if choice == "4":
+            return None
+        print("Invalid choice, please try again.")
+
+
+def choose_service_for_evaluation() -> Optional[str]:
+    print("\nSelect RL service:")
+    print("  1. VoIP")
+    print("  2. CBR")
+    print("  3. Video Streaming")
+    print("  4. Back to Main Menu")
+    while True:
+        choice = input("Enter service choice (1-4): ").strip()
+        if choice == "1":
+            return "voip"
+        if choice == "2":
+            return "cbr"
+        if choice == "3":
+            return "streaming"
+        if choice == "4":
+            return None
+        print("Invalid choice. Please enter 1, 2, 3, or 4.")
 
 
 def choose_traffic_profile_mode_for_rl() -> str:
@@ -510,10 +533,17 @@ def choose_profile_settings_for_rl() -> Tuple[str, Optional[str]]:
     return mode, None
 
 
-def choose_evaluation_mode() -> str:
+def resolve_checkpoint_dir(base_dir: Path, service: str, profile_mode: str) -> Path:
+    return base_dir / service / profile_mode
+
+
+def choose_evaluation_mode(train_mode: str) -> str:
     print("\nEvaluation mode:")
     print("  1. Use original training profile settings")
-    print("  2. Override evaluation profile settings")
+    if train_mode == "random":
+        print("  2. Override to fixed profile evaluation")
+    else:
+        print("  2. Override to random profile evaluation")
     while True:
         choice = input("Enter evaluation mode (1-2): ").strip()
         if choice == "1":
@@ -523,12 +553,29 @@ def choose_evaluation_mode() -> str:
         print("Invalid choice. Please enter 1 or 2.")
 
 
+def _checkpoint_sort_key(path: Path) -> Tuple[int, int, str]:
+    name = path.name
+    match = re.search(r"_episode_(\d+)\.pt$", name)
+    if match:
+        return (0, int(match.group(1)), name.lower())
+    if name.endswith("_final.pt"):
+        return (2, 0, name.lower())
+    return (1, 0, name.lower())
+
+
+def list_checkpoints_for_service_mode(
+    base_checkpoint_dir: Path,
+    service: str,
+    profile_mode: str,
+) -> List[Path]:
+    checkpoint_dir = resolve_checkpoint_dir(base_checkpoint_dir, service, profile_mode)
+    return sorted(checkpoint_dir.glob("*.pt"), key=_checkpoint_sort_key)
+
+
 def choose_checkpoint_for_evaluation(checkpoint_dir: Path) -> Optional[Path]:
-    candidates = sorted(checkpoint_dir.glob("sac_*_final.pt"))
+    candidates = sorted(checkpoint_dir.glob("*.pt"), key=_checkpoint_sort_key)
     if not candidates:
         return None
-    if len(candidates) == 1:
-        return candidates[0]
 
     print("\nSelect checkpoint to evaluate:")
     for idx, path in enumerate(candidates, start=1):
@@ -544,6 +591,13 @@ def choose_checkpoint_for_evaluation(checkpoint_dir: Path) -> Optional[Path]:
             print(f"Invalid choice. Please enter a number from 1 to {len(candidates)}.")
             continue
         return candidates[idx - 1]
+
+
+def _infer_service_from_checkpoint_name(checkpoint_path: Path) -> Optional[str]:
+    match = re.match(r"^sac_(voip|cbr|streaming)_(?:episode_\d+|final)\.pt$", checkpoint_path.name)
+    if not match:
+        return None
+    return str(match.group(1)).strip().lower()
 
 
 def run_networkmodel(config: Dict[str, Any], config_dir: Path, logger: logging.Logger) -> None:
@@ -702,15 +756,28 @@ def run_sac_training_mode() -> None:
 
     
     service = choose_service_for_rl()
+    if service is None:
+        print("Returning to main menu...")
+        return
     profile_mode, fixed_profile_name = choose_profile_settings_for_rl()
 
     cfg = get_default_config()
+    base_checkpoint_dir_cfg = Path(cfg.checkpoint.checkpoint_dir)
+    base_checkpoint_dir = (
+        base_checkpoint_dir_cfg
+        if base_checkpoint_dir_cfg.is_absolute()
+        else BASE_DIR / base_checkpoint_dir_cfg
+    )
+    checkpoint_dir = resolve_checkpoint_dir(base_checkpoint_dir, service, profile_mode)
+
     cfg.environment.service = service
     cfg.environment.traffic_profile_mode = profile_mode
     cfg.environment.fixed_profile_name = fixed_profile_name or cfg.environment.fixed_profile_name
+    cfg.checkpoint.checkpoint_dir = checkpoint_dir
     cfg.training.verbose = True
 
     print("\nStarting SAC training (config-driven)...")
+    print(f"Checkpoint output directory: {checkpoint_dir}")
 
     try:
         train_result = train_sac(config=cfg)
@@ -737,76 +804,101 @@ def run_sac_evaluation_mode() -> None:
     cfg = get_default_config()
 
     checkpoint_dir_cfg = Path(cfg.checkpoint.checkpoint_dir)
-    checkpoint_dir = checkpoint_dir_cfg if checkpoint_dir_cfg.is_absolute() else BASE_DIR / checkpoint_dir_cfg
+    base_checkpoint_dir = checkpoint_dir_cfg if checkpoint_dir_cfg.is_absolute() else BASE_DIR / checkpoint_dir_cfg
 
-    ckpt_path = choose_checkpoint_for_evaluation(checkpoint_dir)
-    if ckpt_path is None:
-        print(f"ERROR: No checkpoint file found in: {checkpoint_dir}")
-        return
+    while True:
+        selected_service_for_folder = choose_service_for_evaluation()
+        if selected_service_for_folder is None:
+            print("\nLeaving SAC evaluation mode. Returning to main menu...")
+            break
 
-    if not ckpt_path.exists():
-        print(f"ERROR: Checkpoint file not found: {ckpt_path}")
-        return
+        selected_mode_for_folder = choose_traffic_profile_mode_for_rl()
+        checkpoint_dir = resolve_checkpoint_dir(base_checkpoint_dir, selected_service_for_folder, selected_mode_for_folder)
 
-    config_path = ckpt_path.with_name(f"{ckpt_path.stem}_config.json")
-    loaded_config: Dict[str, Any] = {}
-    if config_path.exists():
-        try:
-            loaded_config = load_config(config_path)
-            print(f"Loaded config from checkpoint: {config_path}")
-        except Exception as e:
-            print(f"WARNING: Failed to load checkpoint config, using fallbacks: {e}")
-            loaded_config = {}
+        available_checkpoints = list_checkpoints_for_service_mode(
+            base_checkpoint_dir=base_checkpoint_dir,
+            service=selected_service_for_folder,
+            profile_mode=selected_mode_for_folder,
+        )
 
-    env_cfg_raw = loaded_config.get("environment", {}) if isinstance(loaded_config, dict) else {}
-    env_cfg = env_cfg_raw if isinstance(env_cfg_raw, dict) else {}
+        ckpt_path = choose_checkpoint_for_evaluation(checkpoint_dir)
+        if ckpt_path is None:
+            print(
+                "ERROR: "
+                f"No checkpoint files found for service={selected_service_for_folder} "
+                f"and mode={selected_mode_for_folder} in {checkpoint_dir}"
+            )
+            print("Returning to evaluation menu...")
+            continue
+        if ckpt_path not in available_checkpoints:
+            print(f"ERROR: Selected checkpoint is not valid for folder: {checkpoint_dir}")
+            print("Returning to evaluation menu...")
+            continue
 
-    inferred_service = ckpt_path.name
-    if inferred_service.startswith("sac_") and inferred_service.endswith("_final.pt"):
-        inferred_service = inferred_service[len("sac_"):-len("_final.pt")]
+        if not ckpt_path.exists():
+            print(f"ERROR: Checkpoint file not found: {ckpt_path}")
+            print("Returning to evaluation menu...")
+            continue
 
-    train_service = str(env_cfg.get("service", inferred_service)).strip().lower()
-    train_mode = str(env_cfg.get("traffic_profile_mode", "fixed")).strip().lower()
-    if train_mode not in {"fixed", "random"}:
-        train_mode = "fixed"
-    train_profile = str(env_cfg.get("fixed_profile_name", "profile_1"))
-    train_seed = env_cfg.get("seed", cfg.environment.seed)
-    train_rb_min = env_cfg.get("rb_min", cfg.environment.rb_min)
+        config_path = ckpt_path.with_name(f"{ckpt_path.stem}_config.json")
+        loaded_config: Dict[str, Any] = {}
+        if config_path.exists():
+            try:
+                loaded_config = load_config(config_path)
+                print(f"Loaded config from checkpoint: {config_path}")
+            except Exception as e:
+                print(f"WARNING: Failed to load checkpoint config, using fallbacks: {e}")
+                loaded_config = {}
 
-    eval_mode = choose_evaluation_mode()
+        env_cfg_raw = loaded_config.get("environment", {}) if isinstance(loaded_config, dict) else {}
+        env_cfg = env_cfg_raw if isinstance(env_cfg_raw, dict) else {}
 
-    if eval_mode == "original":
-        selected_service = train_service
-        selected_mode = train_mode
-        selected_profile = train_profile
-        print("\nEvaluating using training profile settings:")
-        print(f"service = {selected_service}")
-        if selected_mode == "random":
-            print("mode = random (dynamic per step)")
+        inferred_service = _infer_service_from_checkpoint_name(ckpt_path) or selected_service_for_folder
+
+        train_service = str(env_cfg.get("service", inferred_service)).strip().lower()
+        train_mode = str(env_cfg.get("traffic_profile_mode", selected_mode_for_folder)).strip().lower()
+        if train_mode not in {"fixed", "random"}:
+            train_mode = selected_mode_for_folder
+        train_profile = str(env_cfg.get("fixed_profile_name", "profile_1"))
+        train_seed = env_cfg.get("seed", cfg.environment.seed)
+        train_rb_min = env_cfg.get("rb_min", cfg.environment.rb_min)
+
+        eval_mode = choose_evaluation_mode(train_mode)
+
+        if eval_mode == "original":
+            selected_service = train_service
+            selected_mode = train_mode
+            selected_profile = train_profile
+            print("\nEvaluating using training profile settings:")
+            print(f"service = {selected_service}")
+            if selected_mode == "random":
+                print("mode = random (dynamic per step)")
+            else:
+                print("mode = fixed")
+                print(f"profile = {selected_profile}")
         else:
-            print("mode = fixed")
-            print(f"profile = {selected_profile}")
-    else:
-        selected_service = train_service
-        selected_mode, selected_profile = choose_profile_settings_for_rl()
-        print("\nEvaluating with overridden profile settings (service fixed from checkpoint):")
-        print(f"service = {selected_service}")
-        if selected_mode == "random":
-            print("mode = random (dynamic per step)")
-        else:
-            print("mode = fixed")
-            print(f"profile = {selected_profile}")
+            selected_service = train_service
+            if train_mode == "random":
+                selected_mode = "fixed"
+                selected_profile = choose_fixed_profile_name()
+            else:
+                selected_mode = "random"
+                selected_profile = None
+            print("\nEvaluating with overridden profile settings (service fixed from checkpoint):")
+            print(f"service = {selected_service}")
+            if selected_mode == "random":
+                print("mode = random (dynamic per step)")
+            else:
+                print("mode = fixed")
+                print(f"profile = {selected_profile}")
 
-    eval_episodes = int(cfg.evaluation.episodes)
-    eval_steps = int(cfg.evaluation.max_steps_per_episode)
-    if eval_episodes <= 0:
-        eval_episodes = 1
-    if eval_steps <= 0:
-        eval_steps = 1
+        eval_episodes = int(cfg.evaluation.episodes)
+        eval_steps = int(cfg.evaluation.max_steps_per_episode)
+        if eval_episodes <= 0:
+            eval_episodes = 1
+        if eval_steps <= 0:
+            eval_steps = 1
 
-    try:
-        checkpoint_dir_path = ckpt_path.parent
-        evaluation_log_path = checkpoint_dir_path / "evaluation.log"
         evaluation_logger = logging.getLogger("sac_evaluation_standalone")
         evaluation_logger.setLevel(logging.INFO)
         evaluation_logger.propagate = False
@@ -814,99 +906,105 @@ def run_sac_evaluation_mode() -> None:
             handler.flush()
             handler.close()
             evaluation_logger.removeHandler(handler)
-        eval_file_handler = logging.FileHandler(evaluation_log_path, mode='w', encoding='utf-8')
-        eval_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-        evaluation_logger.addHandler(eval_file_handler)
 
-        env_kwargs = {
-            "service": selected_service,
-            "traffic_profile_mode": selected_mode,
-            "seed": train_seed,
-        }
-        if selected_mode == "fixed":
-            env_kwargs["fixed_profile_name"] = selected_profile
-        if train_rb_min is not None:
-            env_kwargs["rb_min"] = train_rb_min
+        try:
+            checkpoint_dir_path = ckpt_path.parent
+            evaluation_log_path = checkpoint_dir_path / "evaluation.log"
+            eval_file_handler = logging.FileHandler(evaluation_log_path, mode='w', encoding='utf-8')
+            eval_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+            evaluation_logger.addHandler(eval_file_handler)
 
-        env = NetworkSACEnv(**env_kwargs)
-        if hasattr(env, "set_logger"):
-            env.set_logger(evaluation_logger)
-        if hasattr(env, "set_logging_context"):
-            env.set_logging_context("evaluation")
-        state_dim = int(np.prod(env.observation_shape))
-        action_dim = int(np.prod(env.action_shape))
-
-        agent = SACAgent(state_dim=state_dim, action_dim=action_dim)
-        agent.load(ckpt_path)
-    except Exception as e:
-        print(f"ERROR: Failed to initialize evaluation: {e}")
-        return
-
-    rewards: List[float] = []
-    evaluation_episode_dti_series: List[Dict[str, Any]] = []
-    evaluation_logger.info("Running deterministic SAC evaluation...")
-    print("\nRunning deterministic SAC evaluation...")
-    for episode in range(1, eval_episodes + 1):
-        evaluation_logger.info("=" * 50)
-        evaluation_logger.info(f"START EVALUATION EPISODE {episode}")
-        evaluation_logger.info("=" * 50)
-        if hasattr(env, "set_logger"):
-            env.set_logger(evaluation_logger)
-        if hasattr(env, "set_logging_context"):
-            env.set_logging_context("evaluation")
-        state = env.reset()
-        ep_reward = 0.0
-        ep_dti_indices: List[int] = []
-        ep_beta_values: List[float] = []
-        ep_reward_values: List[float] = []
-        for step_idx in range(eval_steps):
-            action = agent.select_action(state, evaluate=True)
-            next_state, reward, done, info = env.step(action)
-            ep_reward += float(reward)
-            ep_dti_indices.append(_safe_dti_index_for_plot(info.get("dti_index"), fallback=step_idx + 1))
-            ep_beta_values.append(_safe_plot_float(info.get("beta_current")))
-            ep_reward_values.append(_safe_plot_float(reward))
-            state = next_state
-            if done:
-                break
-        evaluation_episode_dti_series.append(
-            {
-                "episode": int(episode),
-                "dti_indices": ep_dti_indices,
-                "beta_values": ep_beta_values,
-                "reward_values": ep_reward_values,
+            env_kwargs = {
+                "service": selected_service,
+                "traffic_profile_mode": selected_mode,
+                "seed": train_seed,
             }
-        )
-        rewards.append(ep_reward)
-        ep_reward_log_value = float(ep_reward) if np.isfinite(ep_reward) else None
-        if ep_reward_log_value is None:
-            evaluation_logger.info(f"Episode {episode:03d} reward: None")
-        else:
-            evaluation_logger.info(f"Episode {episode:03d} reward: {ep_reward_log_value:.4f}")
-        print(f"Episode {episode:03d} reward: {ep_reward:.4f}")
+            if selected_mode == "fixed":
+                env_kwargs["fixed_profile_name"] = selected_profile
+            if train_rb_min is not None:
+                env_kwargs["rb_min"] = train_rb_min
 
-    finite_rewards = [float(r) for r in rewards if np.isfinite(r)]
-    mean_reward = float(np.mean(finite_rewards)) if finite_rewards else 0.0
-    std_reward = float(np.std(finite_rewards)) if finite_rewards else 0.0
-    if finite_rewards:
-        evaluation_logger.info(f"Evaluation complete | mean reward: {mean_reward:.4f} | std: {std_reward:.4f}")
-    else:
-        evaluation_logger.info("Evaluation complete | mean reward: None | std: None")
+            env = NetworkSACEnv(**env_kwargs)
+            if hasattr(env, "set_logger"):
+                env.set_logger(evaluation_logger)
+            if hasattr(env, "set_logging_context"):
+                env.set_logging_context("evaluation")
+            state_dim = int(np.prod(env.observation_shape))
+            action_dim = int(np.prod(env.action_shape))
 
-    evaluation_dti_plot_dir = checkpoint_dir_path / "evaluation_dti_plots" / selected_service
-    generated_eval_plots = save_episode_dti_plots(
-        episode_data=evaluation_episode_dti_series,
-        output_dir=evaluation_dti_plot_dir,
-    )
-    evaluation_logger.info(
-        f"Saved per-episode DTI evaluation plots: {generated_eval_plots} files at {evaluation_dti_plot_dir}"
-    )
+            agent = SACAgent(state_dim=state_dim, action_dim=action_dim)
+            agent.load(ckpt_path)
 
-    for handler in list(evaluation_logger.handlers):
-        handler.flush()
-        handler.close()
-        evaluation_logger.removeHandler(handler)
-    print(f"\nEvaluation complete | mean reward: {mean_reward:.4f} | std: {std_reward:.4f}")
+            rewards: List[float] = []
+            evaluation_episode_dti_series: List[Dict[str, Any]] = []
+            evaluation_logger.info("Running deterministic SAC evaluation...")
+            print("\nRunning deterministic SAC evaluation...")
+            for episode in range(1, eval_episodes + 1):
+                evaluation_logger.info("=" * 50)
+                evaluation_logger.info(f"START EVALUATION EPISODE {episode}")
+                evaluation_logger.info("=" * 50)
+                if hasattr(env, "set_logger"):
+                    env.set_logger(evaluation_logger)
+                if hasattr(env, "set_logging_context"):
+                    env.set_logging_context("evaluation")
+                state = env.reset()
+                ep_reward = 0.0
+                ep_dti_indices: List[int] = []
+                ep_beta_values: List[float] = []
+                ep_reward_values: List[float] = []
+                for step_idx in range(eval_steps):
+                    action = agent.select_action(state, evaluate=True)
+                    next_state, reward, done, info = env.step(action)
+                    ep_reward += float(reward)
+                    ep_dti_indices.append(_safe_dti_index_for_plot(info.get("dti_index"), fallback=step_idx + 1))
+                    ep_beta_values.append(_safe_plot_float(info.get("beta_current")))
+                    ep_reward_values.append(_safe_plot_float(reward))
+                    state = next_state
+                    if done:
+                        break
+                evaluation_episode_dti_series.append(
+                    {
+                        "episode": int(episode),
+                        "dti_indices": ep_dti_indices,
+                        "beta_values": ep_beta_values,
+                        "reward_values": ep_reward_values,
+                    }
+                )
+                rewards.append(ep_reward)
+                ep_reward_log_value = float(ep_reward) if np.isfinite(ep_reward) else None
+                if ep_reward_log_value is None:
+                    evaluation_logger.info(f"Episode {episode:03d} reward: None")
+                else:
+                    evaluation_logger.info(f"Episode {episode:03d} reward: {ep_reward_log_value:.4f}")
+                print(f"Episode {episode:03d} reward: {ep_reward:.4f}")
+
+            finite_rewards = [float(r) for r in rewards if np.isfinite(r)]
+            mean_reward = float(np.mean(finite_rewards)) if finite_rewards else 0.0
+            std_reward = float(np.std(finite_rewards)) if finite_rewards else 0.0
+            if finite_rewards:
+                evaluation_logger.info(f"Evaluation complete | mean reward: {mean_reward:.4f} | std: {std_reward:.4f}")
+            else:
+                evaluation_logger.info("Evaluation complete | mean reward: None | std: None")
+
+            evaluation_dti_plot_dir = checkpoint_dir_path / "evaluation_dti_plots" / selected_service
+            generated_eval_plots = save_episode_dti_plots(
+                episode_data=evaluation_episode_dti_series,
+                output_dir=evaluation_dti_plot_dir,
+            )
+            evaluation_logger.info(
+                f"Saved per-episode DTI evaluation plots: {generated_eval_plots} files at {evaluation_dti_plot_dir}"
+            )
+
+            print(f"\nEvaluation complete | mean reward: {mean_reward:.4f} | std: {std_reward:.4f}")
+            print("Evaluation finished. Returning to evaluation menu...")
+        except Exception as e:
+            print(f"ERROR: Evaluation failed: {e}")
+            print("Returning to evaluation menu...")
+        finally:
+            for handler in list(evaluation_logger.handlers):
+                handler.flush()
+                handler.close()
+                evaluation_logger.removeHandler(handler)
 
 
 def predict_resource_blocks_from_input(
@@ -951,6 +1049,13 @@ def predict_resource_blocks_from_input(
 
     for service in required_services:
         ckpt_path = checkpoint_dir_path / f"sac_{service}_final.pt"
+        if not ckpt_path.exists():
+            fixed_candidate = resolve_checkpoint_dir(checkpoint_dir_path, service, "fixed") / f"sac_{service}_final.pt"
+            random_candidate = resolve_checkpoint_dir(checkpoint_dir_path, service, "random") / f"sac_{service}_final.pt"
+            if fixed_candidate.exists():
+                ckpt_path = fixed_candidate
+            elif random_candidate.exists():
+                ckpt_path = random_candidate
         if not ckpt_path.exists():
             raise FileNotFoundError(f"Checkpoint not found for service '{service}': {ckpt_path}")
 
