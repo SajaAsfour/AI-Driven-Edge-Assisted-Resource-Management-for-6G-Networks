@@ -125,6 +125,14 @@ def _safe_plot_float(value: Any) -> float:
 	return value_float
 
 
+def _safe_utilization(value: Any) -> float:
+	"""Return utilization in [0, 1], else NaN."""
+	value_float = _safe_plot_float(value)
+	if not np.isfinite(value_float):
+		return float("nan")
+	return float(np.clip(value_float, 0.0, 1.0))
+
+
 def _safe_dti_index_for_plot(value: Any, fallback: int) -> int:
 	"""Return positive integer DTI index for plotting."""
 	try:
@@ -140,51 +148,92 @@ def _save_episode_dti_plots(
 	episode_data: list[Dict[str, Any]],
 	output_dir: Path,
 ) -> int:
-	"""Save per-episode Beta-vs-DTI and Reward-vs-DTI plots."""
+	"""Save per-episode DTI plots for beta, reward, and utilization diagnostics."""
 	output_dir.mkdir(parents=True, exist_ok=True)
 	generated = 0
 
 	for episode_entry in episode_data:
 		episode_idx = int(episode_entry.get("episode", 0))
-		dti_indices = [int(x) for x in episode_entry.get("dti_indices", [])]
-		beta_values = [float(x) for x in episode_entry.get("beta_values", [])]
-		reward_values = [float(x) for x in episode_entry.get("reward_values", [])]
+		raw_dti_indices = list(episode_entry.get("dti_indices", []))
+		dti_indices = [
+			_safe_dti_index_for_plot(raw_val, fallback=i + 1)
+			for i, raw_val in enumerate(raw_dti_indices)
+		]
+		beta_values = [_safe_plot_float(x) for x in episode_entry.get("beta_values", [])]
+		reward_values = [_safe_plot_float(x) for x in episode_entry.get("reward_values", [])]
+		utilization_values = [_safe_utilization(x) for x in episode_entry.get("utilization_values", [])]
 
 		if not dti_indices:
 			continue
 
-		min_len = min(len(dti_indices), len(beta_values), len(reward_values))
-		if min_len <= 0:
-			continue
+		min_len_beta = min(len(dti_indices), len(beta_values))
+		min_len_reward = min(len(dti_indices), len(reward_values))
+		min_len_utilization = min(len(dti_indices), len(utilization_values))
+		min_len_beta_utilization = min(len(beta_values), len(utilization_values))
 
-		x_vals = dti_indices[:min_len]
-		beta_vals = beta_values[:min_len]
-		reward_vals = reward_values[:min_len]
+		x_vals_beta = dti_indices[:min_len_beta]
+		beta_vals = beta_values[:min_len_beta]
+		x_vals_reward = dti_indices[:min_len_reward]
+		reward_vals = reward_values[:min_len_reward]
+		x_vals_utilization = dti_indices[:min_len_utilization]
+		util_vals = utilization_values[:min_len_utilization]
+		beta_vals_for_scatter = beta_values[:min_len_beta_utilization]
+		util_vals_for_scatter = utilization_values[:min_len_beta_utilization]
 
 		beta_path = output_dir / f"beta_vs_dti_episode_{episode_idx:03d}.png"
 		reward_path = output_dir / f"reward_vs_dti_episode_{episode_idx:03d}.png"
+		utilization_path = output_dir / f"utilization_vs_dti_episode_{episode_idx:03d}.png"
+		beta_vs_utilization_path = output_dir / f"beta_vs_utilization_episode_{episode_idx:03d}.png"
 
-		plt.figure(figsize=(8, 4.5))
-		plt.plot(x_vals, beta_vals, marker="o", linewidth=1.5)
-		plt.title(f"Beta vs DTI - Episode {episode_idx:03d}")
-		plt.xlabel("DTI Index")
-		plt.ylabel("beta_current")
-		plt.grid(True)
-		plt.tight_layout()
-		plt.savefig(beta_path, dpi=150)
-		plt.close()
-		generated += 1
+		if min_len_beta > 0:
+			plt.figure(figsize=(8, 4.5))
+			plt.plot(x_vals_beta, beta_vals, marker="o", linewidth=1.5)
+			plt.title(f"Beta vs DTI - Episode {episode_idx:03d}")
+			plt.xlabel("DTI Index")
+			plt.ylabel("beta_current")
+			plt.grid(True)
+			plt.tight_layout()
+			plt.savefig(beta_path, dpi=150)
+			plt.close()
+			generated += 1
 
-		plt.figure(figsize=(8, 4.5))
-		plt.plot(x_vals, reward_vals, marker="o", linewidth=1.5)
-		plt.title(f"Reward vs DTI - Episode {episode_idx:03d}")
-		plt.xlabel("DTI Index")
-		plt.ylabel("reward_current")
-		plt.grid(True)
-		plt.tight_layout()
-		plt.savefig(reward_path, dpi=150)
-		plt.close()
-		generated += 1
+		if min_len_reward > 0:
+			plt.figure(figsize=(8, 4.5))
+			plt.plot(x_vals_reward, reward_vals, marker="o", linewidth=1.5)
+			plt.title(f"Reward vs DTI - Episode {episode_idx:03d}")
+			plt.xlabel("DTI Index")
+			plt.ylabel("reward_current")
+			plt.grid(True)
+			plt.tight_layout()
+			plt.savefig(reward_path, dpi=150)
+			plt.close()
+			generated += 1
+
+		if min_len_utilization > 0:
+			plt.figure(figsize=(8, 4.5))
+			plt.plot(x_vals_utilization, util_vals, marker="o", linewidth=1.5)
+			plt.title(f"Utilization vs DTI - Episode {episode_idx:03d}")
+			plt.xlabel("DTI Index")
+			plt.ylabel("utilization (rb_used / C)")
+			plt.grid(True)
+			plt.tight_layout()
+			plt.savefig(utilization_path, dpi=150)
+			plt.close()
+			generated += 1
+
+		if min_len_beta_utilization > 0:
+			plt.figure(figsize=(8, 4.5))
+			plt.scatter(beta_vals_for_scatter, util_vals_for_scatter, s=20, alpha=0.9)
+			if min_len_beta_utilization > 1:
+				plt.plot(beta_vals_for_scatter, util_vals_for_scatter, linewidth=1.0, alpha=0.35)
+			plt.title(f"Beta vs Utilization - Episode {episode_idx:03d}")
+			plt.xlabel("beta_current")
+			plt.ylabel("utilization (rb_used / C)")
+			plt.grid(True)
+			plt.tight_layout()
+			plt.savefig(beta_vs_utilization_path, dpi=150)
+			plt.close()
+			generated += 1
 
 	return generated
 
@@ -220,16 +269,20 @@ def _run_evaluation(
 		episode_dti_indices: list[int] = []
 		episode_beta_values: list[float] = []
 		episode_reward_values: list[float] = []
+		episode_utilization_values: list[float] = []
+		episode_rb_used_values: list[float] = []
 		for step_idx in range(max_steps):
 			action = agent.select_action(state, evaluate=True)
-			next_state, reward, done, _ = env.step(action)
+			next_state, reward, done, info = env.step(action)
 			episode_reward += float(reward)
-			step_info = _ if isinstance(_, dict) else {}
+			step_info = info if isinstance(info, dict) else {}
 			episode_dti_indices.append(
 				_safe_dti_index_for_plot(step_info.get("dti_index"), fallback=step_idx + 1)
 			)
 			episode_beta_values.append(_safe_plot_float(step_info.get("beta_current")))
 			episode_reward_values.append(_safe_plot_float(reward))
+			episode_utilization_values.append(_safe_utilization(step_info.get("utilization")))
+			episode_rb_used_values.append(_safe_plot_float(step_info.get("rb_alloc")))
 			state = next_state
 			if done:
 				break
@@ -241,6 +294,8 @@ def _run_evaluation(
 				"dti_indices": episode_dti_indices,
 				"beta_values": episode_beta_values,
 				"reward_values": episode_reward_values,
+				"utilization_values": episode_utilization_values,
+				"rb_used_values": episode_rb_used_values,
 			}
 		)
 		episode_reward_safe = _safe_float_for_log(episode_reward)
@@ -286,7 +341,6 @@ def train_sac(
 	Returns:
 		Dictionary with training history and paths to saved checkpoints.
 	"""
-	# Legacy defaults preserved from original train_sac behavior.
 	default_service = "voip"
 	default_max_episodes = 200
 	default_max_steps_per_episode = 128
@@ -435,6 +489,8 @@ def train_sac(
 		"alpha_loss": [],
 		"entropy": [],
 		"evaluation_rewards": [],
+		"training_episode_dti_series": [],
+		"latest_evaluation_episode_dti_series": [],
 	}
 	history["service"] = service
 	saved_checkpoints: list[str] = []
@@ -445,6 +501,11 @@ def train_sac(
 	for episode in range(1, max_episodes + 1):
 		state = env.reset()
 		episode_reward = 0.0
+		episode_dti_indices: list[int] = []
+		episode_beta_values: list[float] = []
+		episode_reward_values: list[float] = []
+		episode_utilization_values: list[float] = []
+		episode_rb_used_values: list[float] = []
 
 		episode_actor_losses: list[float] = []
 		episode_critic1_losses: list[float] = []
@@ -471,10 +532,27 @@ def train_sac(
 				profile_name = info.get("profile_name")
 				profile_values = info.get("profile_values")
 				dti_index = info.get("dti_index")
+				rb_alloc = _safe_float_for_log(info.get("rb_alloc"))
+				capacity = _safe_float_for_log(info.get("capacity", info.get("C")))
+				utilization = _safe_float_for_log(info.get("utilization"))
+				if utilization is None:
+					utilization_text = "None"
+				elif rb_alloc is not None and capacity is not None:
+					utilization_text = f"rb_used / C = {rb_alloc:.0f} / {capacity:.0f} = {utilization:.4f}"
+				else:
+					utilization_text = f"{utilization:.4f}"
 				training_logger.info(
 					f"Step {step_idx + 1:03d} | DTI {int(dti_index) + 1:03d} | "
-					f"Profile Mode: {profile_mode} | Profile: {profile_name} -> {profile_values}"
+					f"Profile Mode: {profile_mode} | Profile: {profile_name} -> {profile_values} | "
+					f"Utilization: {utilization_text}"
 				)
+			episode_dti_indices.append(
+				_safe_dti_index_for_plot(info.get("dti_index"), fallback=step_idx + 1)
+			)
+			episode_beta_values.append(_safe_plot_float(info.get("beta_current")))
+			episode_reward_values.append(_safe_plot_float(reward))
+			episode_utilization_values.append(_safe_utilization(info.get("utilization")))
+			episode_rb_used_values.append(_safe_plot_float(info.get("rb_alloc")))
 			replay_buffer.add(state, action, reward, next_state, done)
 			episode_reward += float(reward)
 			total_steps += 1
@@ -537,6 +615,16 @@ def train_sac(
 		history["alpha"].append(mean_alpha)
 		history["alpha_loss"].append(mean_alpha_loss)
 		history["entropy"].append(mean_entropy)
+		history["training_episode_dti_series"].append(
+			{
+				"episode": int(episode),
+				"dti_indices": episode_dti_indices,
+				"beta_values": episode_beta_values,
+				"reward_values": episode_reward_values,
+				"utilization_values": episode_utilization_values,
+				"rb_used_values": episode_rb_used_values,
+			}
+		)
 
 		if verbose:
 			training_logger.info(
@@ -558,9 +646,9 @@ def train_sac(
 				episodes=evaluation_episodes,
 				evaluation_logger=evaluation_logger,
 			)
-			# Keep plots aligned to configured evaluation episodes (e.g., 5),
-			# rather than accumulating all periodic evaluation runs.
+			
 			latest_evaluation_episode_dti_series = eval_episode_series
+			history["latest_evaluation_episode_dti_series"] = list(latest_evaluation_episode_dti_series)
 			if hasattr(env, "set_logger"):
 				env.set_logger(training_logger)
 			if hasattr(env, "set_logging_context"):

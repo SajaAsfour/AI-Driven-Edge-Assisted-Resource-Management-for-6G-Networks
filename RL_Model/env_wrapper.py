@@ -223,6 +223,17 @@ class NetworkSACEnv:
 		return value_float
 
 	@staticmethod
+	def _safe_utilization(value: Any) -> float:
+		"""Return utilization clipped to [0, 1], else NaN for invalid values."""
+		try:
+			value_float = float(value)
+		except (TypeError, ValueError):
+			return float("nan")
+		if not np.isfinite(value_float):
+			return float("nan")
+		return float(np.clip(value_float, 0.0, 1.0))
+
+	@staticmethod
 	def _format_log_value(
 		value: Optional[float],
 		decimals: int = 4,
@@ -238,6 +249,7 @@ class NetworkSACEnv:
 		self,
 		dti_index: int,
 		rb_used: Number,
+		utilization: Number,
 		beta_current: Number,
 		reward_current: Number,
 		done: bool,
@@ -249,6 +261,7 @@ class NetworkSACEnv:
 
 		beta_val = self._safe_numeric_for_log(beta_current)
 		rb_used_val = self._safe_numeric_for_log(rb_used)
+		utilization_val = self._safe_numeric_for_log(utilization)
 		c_val = self._safe_numeric_for_log(self.c)
 		lambda_val = self._safe_numeric_for_log(self.lambda_reward)
 		reward_val = self._safe_numeric_for_log(reward_current)
@@ -272,6 +285,12 @@ class NetworkSACEnv:
 		logger.info(f"beta_current = {self._format_log_value(beta_val, decimals=4)}")
 		logger.info(f"rb_used = {self._format_log_value(rb_used_val, decimals=4, integer_if_whole=True)}")
 		logger.info(f"C = {self._format_log_value(c_val, decimals=4, integer_if_whole=True)}")
+		logger.info(
+			"utilization = rb_used / C = "
+			f"{self._format_log_value(rb_used_val, decimals=4, integer_if_whole=True)} / "
+			f"{self._format_log_value(c_val, decimals=4, integer_if_whole=True)} = "
+			f"{self._format_log_value(utilization_val, decimals=4)}"
+		)
 		logger.info(f"lambda_reward = {self._format_log_value(lambda_val, decimals=4)}")
 		logger.info("")
 		logger.info(
@@ -294,6 +313,7 @@ class NetworkSACEnv:
 		logger.info("Step Summary:")
 		logger.info(f"- beta_current: {self._format_log_value(beta_val, decimals=4)}")
 		logger.info(f"- rb_used: {self._format_log_value(rb_used_val, decimals=4, integer_if_whole=True)}")
+		logger.info(f"- utilization: {self._format_log_value(utilization_val, decimals=4)}")
 		logger.info(f"- reward_current: {self._format_log_value(reward_val, decimals=4)}")
 		logger.info(f"- done: {bool(done)}")
 		logger.info("----------------------------------------")
@@ -373,6 +393,11 @@ class NetworkSACEnv:
 		)
 
 		rb_alloc = self._action_to_rb(action)
+		try:
+			utilization_raw = float(rb_alloc) / float(self.c)
+		except (TypeError, ValueError, ZeroDivisionError):
+			utilization_raw = float("nan")
+		utilization = self._safe_utilization(utilization_raw)
 		rb_data = [rb_alloc] * self.n
 
 		self.model.set_traffic(traffic_dti)
@@ -398,6 +423,7 @@ class NetworkSACEnv:
 		self._log_step_reward_diagnostics(
 			dti_index=int(dti_result.dti_index),
 			rb_used=rb_alloc,
+			utilization=utilization,
 			beta_current=dti_result.beta_result.beta_current,
 			reward_current=dti_result.reward_current,
 			done=self._done,
@@ -410,6 +436,9 @@ class NetworkSACEnv:
 			"dti_index": int(dti_result.dti_index),
 			"cursor": int(self._dti_cursor),
 			"rb_alloc": int(rb_alloc),
+			"capacity": float(self.c),
+			"C": float(self.c),
+			"utilization": float(utilization),
 			"profile_mode": self.traffic_profile_mode,
 			"profile_name": self._current_profile_name,
 			"profile_values": list(self._current_profile_values),
