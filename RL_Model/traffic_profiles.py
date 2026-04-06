@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from typing import Dict, List, Mapping, Sequence, Tuple
 
 
@@ -45,25 +46,25 @@ def build_ue_profiles(
 
 def build_dti_from_profile(profile_values: Sequence[int], n: int) -> List[int]:
     """
-    Build one DTI vector using deterministic half-and-half filling.
+        Build one DTI vector by random sampling from selected profile values.
 
-    For profile [a, b]:
-      - first floor(n/2) elements are a
-      - remaining elements are b
+    Rule:
+            - For each TTI position, randomly pick one value from `profile_values`.
+            - Every generated value must belong to the selected profile.
+
+    Examples:
+            - profile [5, 10], n=8 -> random values like [5, 10, 10, 5, 5, 10, 5, 10]
     """
     if n <= 0:
         raise ValueError("n must be > 0")
 
     vals = [int(v) for v in profile_values]
-    if len(vals) != 2:
-        raise ValueError(f"profile_values must contain exactly 2 values, got {len(vals)}")
+    if not vals:
+        raise ValueError("profile_values must be non-empty")
     if any(v < 0 for v in vals):
         raise ValueError("profile_values must be >= 0")
 
-    first, second = vals
-    first_half = n // 2
-    second_half = n - first_half
-    out = ([first] * first_half) + ([second] * second_half)
+    out = [int(random.choice(vals)) for _ in range(n)]
 
     if len(out) != n:
         raise ValueError("built DTI length mismatch")
@@ -75,12 +76,15 @@ def build_traffic_matrix_from_profile(
     m: int,
     n: int,
 ) -> List[List[int]]:
-    """Build full traffic matrix [m x n] from one selected profile."""
+    """Build full traffic matrix [m x n] from one selected profile.
+
+    Each DTI row is generated independently by random sampling from
+    `profile_values` via `build_dti_from_profile(...)`.
+    """
     if m <= 0:
         raise ValueError("m must be > 0")
 
-    dti = build_dti_from_profile(profile_values=profile_values, n=n)
-    matrix = [list(dti) for _ in range(m)]
+    matrix = [build_dti_from_profile(profile_values=profile_values, n=n) for _ in range(m)]
 
     if len(matrix) != m:
         raise ValueError("traffic matrix row count mismatch")
@@ -91,13 +95,15 @@ def build_traffic_matrix_from_profile(
 
 
 def validate_dti_values_in_profile(dti: Sequence[int], profile_values: Sequence[int], n: int) -> None:
-    """Validate DTI shape and value membership against a 2-value profile."""
+    """Validate DTI shape and value membership against selected profile values."""
     if len(dti) != n:
         raise ValueError(f"DTI length must be n={n}, got {len(dti)}")
 
     allowed = {int(v) for v in profile_values}
-    if len(allowed) != 2:
-        raise ValueError("profile_values must contain exactly 2 distinct values")
+    if not allowed:
+        raise ValueError("profile_values must be non-empty")
+    if any(v < 0 for v in allowed):
+        raise ValueError("profile_values must be >= 0")
 
     for idx, v in enumerate(dti):
         if int(v) not in allowed:

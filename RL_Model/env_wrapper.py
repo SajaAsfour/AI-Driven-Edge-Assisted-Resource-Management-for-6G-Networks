@@ -298,6 +298,28 @@ class NetworkSACEnv:
 		logger.info(f"- done: {bool(done)}")
 		logger.info("----------------------------------------")
 
+	def _log_dti_traffic_details(
+		self,
+		dti_index: int,
+		profile_name: str,
+		profile_values: list[int],
+		traffic_dti: list[int],
+	) -> None:
+		"""Log generated per-TTI traffic values for current DTI."""
+		if self._logger is not None:
+			logger = self._logger
+			logger.info("-" * 50)
+			logger.info(
+				f"DTI {int(dti_index) + 1} | Profile: {profile_name} -> {list(profile_values)}"
+			)
+			logger.info(f"Traffic TTIs: {list(traffic_dti)}")
+			logger.info("-" * 50)
+		else:
+			print("-" * 50)
+			print(f"DTI {int(dti_index) + 1} | Profile: {profile_name} -> {list(profile_values)}")
+			print(f"Traffic TTIs: {list(traffic_dti)}")
+			print("-" * 50)
+
 	def step(self, action: Union[Number, np.ndarray, list, tuple]) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
 		"""
 		Execute one DTI transition.
@@ -327,12 +349,23 @@ class NetworkSACEnv:
 			self._current_profile_name = profile_name
 			self._current_profile_values = profile_values
 			if self.log_random_profile_each_step:
-				print(
-					f"Step {self._dti_cursor + 1} -> {profile_name} -> {profile_values}"
-				)
+				if self._logger is not None:
+					self._logger.info(
+						f"Step {self._dti_cursor + 1} -> {profile_name} -> {profile_values}"
+					)
+				else:
+					print(
+						f"Step {self._dti_cursor + 1} -> {profile_name} -> {profile_values}"
+					)
 
 		if self._current_profile_values is None or self._current_profile_name is None:
 			raise ValueError("Profile data is missing for current step")
+		self._log_dti_traffic_details(
+			dti_index=self._dti_cursor,
+			profile_name=self._current_profile_name,
+			profile_values=list(self._current_profile_values),
+			traffic_dti=list(traffic_dti),
+		)
 		validate_dti_values_in_profile(
 			dti=traffic_dti,
 			profile_values=self._current_profile_values,
