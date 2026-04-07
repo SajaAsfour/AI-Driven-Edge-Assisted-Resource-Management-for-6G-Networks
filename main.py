@@ -537,6 +537,15 @@ def resolve_checkpoint_dir(base_dir: Path, service: str, profile_mode: str) -> P
     return base_dir / service / profile_mode
 
 
+def resolve_random_final_checkpoint(base_checkpoint_dir: Path, service: str) -> Path:
+    ckpt_path = resolve_checkpoint_dir(base_checkpoint_dir, service, "random") / f"sac_{service}_final.pt"
+    if not ckpt_path.exists():
+        raise FileNotFoundError(
+            f"Random final checkpoint not found for service '{service}': {ckpt_path}"
+        )
+    return ckpt_path
+
+
 def choose_evaluation_mode(train_mode: str) -> str:
     print("\nEvaluation mode:")
     print("  1. Use original training profile settings")
@@ -1009,7 +1018,7 @@ def run_sac_evaluation_mode() -> None:
 
 def predict_resource_blocks_from_input(
     sample_input: Dict[str, Any],
-    checkpoint_dir: Union[str, Path] = "RL_Model/checkpoints",
+    base_checkpoint_dir: Union[str, Path] = "RL_Model/checkpoints",
     seed: Optional[int] = 42,
 ) -> Dict[str, Any]:
     """
@@ -1040,24 +1049,16 @@ def predict_resource_blocks_from_input(
     if missing_services:
         raise ValueError(f"Missing service keys in traffic_users_per_tti: {missing_services}")
 
-    checkpoint_dir_path = Path(checkpoint_dir)
-    if not checkpoint_dir_path.is_absolute():
-        checkpoint_dir_path = BASE_DIR / checkpoint_dir_path
+    base_checkpoint_dir_path = Path(base_checkpoint_dir)
+    if not base_checkpoint_dir_path.is_absolute():
+        base_checkpoint_dir_path = BASE_DIR / base_checkpoint_dir_path
 
     predicted_per_dti: Dict[str, List[int]] = {}
     predicted_per_tti: Dict[str, List[List[int]]] = {}
 
     for service in required_services:
-        ckpt_path = checkpoint_dir_path / f"sac_{service}_final.pt"
-        if not ckpt_path.exists():
-            fixed_candidate = resolve_checkpoint_dir(checkpoint_dir_path, service, "fixed") / f"sac_{service}_final.pt"
-            random_candidate = resolve_checkpoint_dir(checkpoint_dir_path, service, "random") / f"sac_{service}_final.pt"
-            if fixed_candidate.exists():
-                ckpt_path = fixed_candidate
-            elif random_candidate.exists():
-                ckpt_path = random_candidate
-        if not ckpt_path.exists():
-            raise FileNotFoundError(f"Checkpoint not found for service '{service}': {ckpt_path}")
+        ckpt_path = resolve_random_final_checkpoint(base_checkpoint_dir_path, service)
+        print(f"Loading random final checkpoint for {service}: {ckpt_path}")
 
         env_service = service
         env_seed = seed
@@ -1136,6 +1137,12 @@ def _json_safe(value: Any) -> Any:
 
 
 def run_sac_custom_inference_mode() -> None:
+    try:
+        from RL_Model.config import get_default_config
+    except Exception as e:
+        print(f"ERROR: RL config modules could not be imported: {e}")
+        return
+
     sample_input = {
         "traffic_users_per_tti": {
             "voip": [
@@ -1154,12 +1161,14 @@ def run_sac_custom_inference_mode() -> None:
         }
     }
 
-    checkpoint_dir = BASE_DIR / "RL_Model" / "checkpoints"
+    cfg = get_default_config()
+    checkpoint_dir_cfg = Path(cfg.checkpoint.checkpoint_dir)
+    base_checkpoint_dir = checkpoint_dir_cfg if checkpoint_dir_cfg.is_absolute() else BASE_DIR / checkpoint_dir_cfg
 
     try:
         output = predict_resource_blocks_from_input(
             sample_input=sample_input,
-            checkpoint_dir=checkpoint_dir,
+            base_checkpoint_dir=base_checkpoint_dir,
             seed=42,
         )
     except Exception as e:
@@ -1174,7 +1183,7 @@ def run_sac_custom_inference_mode() -> None:
         for dti_index, rb in enumerate(rb_list):
             print(f"  DTI {dti_index} -> Predicted RB: {int(rb)}")
 
-    output_path = checkpoint_dir / "custom_inference_output.json"
+    output_path = base_checkpoint_dir / "custom_inference_output.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(_json_safe(output), indent=2), encoding="utf-8")
     print("\nSaved custom inference output to:")
