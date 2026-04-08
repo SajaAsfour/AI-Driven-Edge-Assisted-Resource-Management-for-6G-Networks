@@ -175,6 +175,8 @@ class NetworkSACEnv:
 		self._last_reward: float = 0.0
 		self._last_rb_norm: float = 0.0
 		self._last_cdf_y: np.ndarray = np.zeros(self.k, dtype=np.float32)
+		self._current_traffic_dti: np.ndarray | list[int] = [0] * self.n
+		self._is_current_dti_prepared: bool = False
 		self.logging_context: str = "training"
 		self._logger: Optional[logging.Logger] = None
 
@@ -195,9 +197,16 @@ class NetworkSACEnv:
 		self._last_reward = 0.0
 		self._last_rb_norm = 0.0
 		self._last_cdf_y = np.zeros(self.k, dtype=np.float32)
-		self._current_profile_name = self._current_profile_name if self.traffic_profile_mode == "fixed" else None
-		self._current_profile_values = self._current_profile_values if self.traffic_profile_mode == "fixed" else None
-		return self.get_state()
+		self._current_traffic_dti = [0] * self.n
+		self._is_current_dti_prepared = False
+		if self.traffic_profile_mode == "fixed":
+			profile_name, profile_values = get_profile_or_raise(self.ue_profiles, self.fixed_profile_name)
+			self._current_profile_name = profile_name
+			self._current_profile_values = list(profile_values)
+		else:
+			self._current_profile_name = None
+			self._current_profile_values = None
+		return self.prepare_current_dti()
 
 	def set_logging_context(self, context: str) -> None:
 		"""Set step diagnostics logging context (training or evaluation)."""
@@ -340,28 +349,23 @@ class NetworkSACEnv:
 			print(f"Traffic TTIs: {list(traffic_dti)}")
 			print("-" * 50)
 
-	def step(self, action: Union[Number, np.ndarray, list, tuple]) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
+	def prepare_current_dti(self) -> np.ndarray:
 		"""
-		Execute one DTI transition.
+		Prepare traffic/profile for the current DTI cursor and return full state.
 
-		Args:
-			action: Continuous SAC action. It is mapped to integer RB allocation.
-
-		Returns:
-			next_state: Flat NumPy state vector.
-			reward: Immediate reward for current DTI.
-			done: Episode completion flag.
-			info: Extra diagnostics (beta values, chosen RB, indices).
+		This makes current DTI traffic available before action selection.
 		"""
-		if self._done:
-			raise RuntimeError("Episode is done. Call reset() before step().")
+		if self._done or self._dti_cursor >= self.m:
+			raise RuntimeError("Cannot prepare current DTI because episode is done.")
 
 		if self.traffic_profile_mode == "fixed":
 			if self._traffic_by_dti is None:
 				raise ValueError("Fixed profile traffic matrix was not initialized")
 			traffic_dti = self._traffic_by_dti[self._dti_cursor]
-			if self._current_profile_values is None or self._current_profile_name is None:
-				raise ValueError("Fixed profile metadata is missing")
+			if self._current_profile_name is None or self._current_profile_values is None:
+				profile_name, profile_values = get_profile_or_raise(self.ue_profiles, self.fixed_profile_name)
+				self._current_profile_name = profile_name
+				self._current_profile_values = list(profile_values)
 		else:
 			profile_name = str(self._rng.choice(self._profile_names))
 			profile_values = [int(v) for v in self.ue_profiles[profile_name]]
@@ -379,7 +383,8 @@ class NetworkSACEnv:
 					)
 
 		if self._current_profile_values is None or self._current_profile_name is None:
-			raise ValueError("Profile data is missing for current step")
+			raise ValueError("Profile data is missing for current DTI preparation")
+
 		self._log_dti_traffic_details(
 			dti_index=self._dti_cursor,
 			profile_name=self._current_profile_name,
@@ -391,6 +396,39 @@ class NetworkSACEnv:
 			profile_values=self._current_profile_values,
 			n=self.n,
 		)
+
+		self._current_traffic_dti = list(traffic_dti)
+		self._is_current_dti_prepared = True
+		return self.get_state()
+
+	def step(self, action: Union[Number, np.ndarray, list, tuple]) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
+		"""
+		Execute one DTI transition.
+
+		Args:
+			action: Continuous SAC action. It is mapped to integer RB allocation.
+
+		Returns:
+			next_state: Flat NumPy state vector.
+			reward: Immediate reward for current DTI.
+			done: Episode completion flag.
+			info: Extra diagnostics (beta values, chosen RB, indices).
+		"""
+		if self._done:
+			raise RuntimeError("Episode is done. Call reset() before step().")
+		if not self._is_current_dti_prepared:
+			raise RuntimeError("Current DTI traffic is not prepared. Call reset() before step().")
+
+		traffic_dti = np.asarray(self._current_traffic_dti, dtype=np.float32).reshape(-1).tolist()
+		if len(traffic_dti) != self.n:
+			raise ValueError(
+				f"Prepared current traffic must have length n={self.n}, got {len(traffic_dti)}"
+			)
+		traffic_dti = [int(np.round(x)) for x in traffic_dti]
+		if self._current_profile_values is None or self._current_profile_name is None:
+			raise ValueError("Profile data is missing for current step")
+		current_profile_name = str(self._current_profile_name)
+		current_profile_values = list(self._current_profile_values)
 
 		rb_alloc = self._action_to_rb(action)
 		try:
@@ -420,6 +458,7 @@ class NetworkSACEnv:
 
 		self._dti_cursor += 1
 		self._done = self._dti_cursor >= self.m
+		self._is_current_dti_prepared = False
 		self._log_step_reward_diagnostics(
 			dti_index=int(dti_result.dti_index),
 			rb_used=rb_alloc,
@@ -429,7 +468,10 @@ class NetworkSACEnv:
 			done=self._done,
 		)
 
-		next_state = self.get_state()
+		if not self._done:
+			next_state = self.prepare_current_dti()
+		else:
+			next_state = self.get_state()
 		info = {
 			"service": self.service,
 			"logging_context": self.logging_context,
@@ -440,8 +482,8 @@ class NetworkSACEnv:
 			"C": float(self.c),
 			"utilization": float(utilization),
 			"profile_mode": self.traffic_profile_mode,
-			"profile_name": self._current_profile_name,
-			"profile_values": list(self._current_profile_values),
+			"profile_name": current_profile_name,
+			"profile_values": current_profile_values,
 			"traffic_dti": list(traffic_dti),
 			"beta_current": float(dti_result.beta_result.beta_current),
 			"beta_cumulative": float(dti_result.beta_result.beta_cumulative),
@@ -458,12 +500,24 @@ class NetworkSACEnv:
 			 last_beta_current,
 			 last_beta_cumulative,
 			 last_rb_norm,
-			 cdf_y[0], ..., cdf_y[k-1]]
+			 cdf_y[0], ..., cdf_y[k-1],
+			 traffic_dti_norm[0], ..., traffic_dti_norm[n-1]]
 
 		"""
 		progress = float(self._dti_cursor) / float(max(self.m, 1))
 
 		cdf_y = np.clip(self._last_cdf_y.astype(np.float32, copy=False), 0.0, 1.0)
+
+		max_traffic = float(max(self.config["traffic_elements"]))
+		if max_traffic <= 0:
+			traffic_state = np.zeros(self.n, dtype=np.float32)
+		else:
+			traffic_state = np.asarray(self._current_traffic_dti, dtype=np.float32).reshape(-1)
+			if traffic_state.size < self.n:
+				traffic_state = np.pad(traffic_state, (0, self.n - traffic_state.size), mode="constant")
+			elif traffic_state.size > self.n:
+				traffic_state = traffic_state[: self.n]
+			traffic_state = np.clip(traffic_state, 0.0, max_traffic) / max_traffic
 
 		state = np.concatenate(
 			[
@@ -477,6 +531,7 @@ class NetworkSACEnv:
 					dtype=np.float32,
 				),
 				cdf_y,
+				traffic_state,
 			]
 		)
 		if not np.all(np.isfinite(state)):
@@ -518,6 +573,13 @@ class NetworkSACEnv:
 		cdf_y = np.asarray(cdf_matrix[:, 1], dtype=np.float32)
 		cdf_y = np.clip(cdf_y, 0.0, 1.0)
 
+		max_traffic = float(max(self.config["traffic_elements"]))
+		if max_traffic <= 0:
+			traffic_state = np.zeros(self.n, dtype=np.float32)
+		else:
+			traffic_state = np.asarray(traffic_vec, dtype=np.float32) / max_traffic
+			traffic_state = np.clip(traffic_state, 0.0, 1.0)
+
 		state = np.concatenate(
 			[
 				np.array(
@@ -530,6 +592,7 @@ class NetworkSACEnv:
 					dtype=np.float32,
 				),
 				cdf_y.astype(np.float32, copy=False),
+				traffic_state.astype(np.float32, copy=False),
 			]
 		)
 		if not np.all(np.isfinite(state)):
@@ -550,7 +613,7 @@ class NetworkSACEnv:
 	@property
 	def observation_shape(self) -> Tuple[int]:
 		"""Return observation shape for network input layer construction."""
-		return (4 + self.k,)
+		return (4 + self.k + self.n,)
 
 	@property
 	def action_shape(self) -> Tuple[int]:

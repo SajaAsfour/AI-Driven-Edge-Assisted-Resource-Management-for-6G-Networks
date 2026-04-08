@@ -30,7 +30,7 @@ class EnvironmentConfig:
 class SACAgentConfig:
 	"""SAC model and optimizer hyperparameters for `SACAgent`."""
 
-	state_dim: int = 22
+	state_dim: int = 28
 	action_dim: int = 1
 	hidden_dims: tuple[int, ...] = (256, 256)
 	gamma: float = 0.99
@@ -47,7 +47,7 @@ class ReplayBufferConfig:
 	"""Off-policy replay storage settings for `ReplayBuffer`."""
 
 	capacity: int = 100_000
-	state_dim: int = 22
+	state_dim: int = 28
 	action_dim: int = 1
 
 
