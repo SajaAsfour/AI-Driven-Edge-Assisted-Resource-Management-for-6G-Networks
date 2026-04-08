@@ -55,10 +55,10 @@ class ReplayBufferConfig:
 class TrainingConfig:
 	"""Core training-loop settings currently used by `train_sac`."""
 
-	max_episodes: int = 200
-	max_steps_per_episode: int = 128
+	max_episodes: int = 20000
+	max_steps_per_episode: int = 2
 	batch_size: int = 16
-	warmup_steps: int = 300
+	warmup_steps: int = 0
 	verbose: bool = True
 
 
@@ -69,14 +69,14 @@ class EvaluationConfig:
 	evaluation_interval: int = 20
 	deterministic: bool = True
 	episodes: int = 5
-	max_steps_per_episode: int = 200
+	max_steps_per_episode: int = 2
 
 @dataclass(slots=True)
 class CheckpointConfig:
 	"""Checkpointing settings for periodic and final saves."""
 
 	checkpoint_dir: PathLike = "RL_Model/checkpoints"
-	save_interval: int = 25
+	save_interval: int = 500
 	file_prefix: str = "sac"
 
 
