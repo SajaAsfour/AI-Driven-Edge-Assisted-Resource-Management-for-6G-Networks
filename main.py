@@ -1143,25 +1143,8 @@ def run_sac_custom_inference_mode() -> None:
         print(f"ERROR: RL config modules could not be imported: {e}")
         return
 
-    sample_input = {
-        "traffic_users_per_tti": {
-            "voip": [
-                [5, 5, 5, 5, 5, 5, 5, 5],
-                [40, 40, 40, 40, 45, 45, 45, 45],
-
-            ],
-            "cbr": [
-                [50, 50, 55, 50, 50, 55, 55, 55],
-                [5, 5, 5, 5, 5, 5, 5, 5],
-            ],
-            "streaming": [
-                [5, 5, 5, 5, 5, 5, 5, 5],
-                [5, 5, 5, 5, 5, 5, 5, 5],
-            ],
-        }
-    }
-
     cfg = get_default_config()
+    sample_input = cfg.environment.sample_input
     checkpoint_dir_cfg = Path(cfg.checkpoint.checkpoint_dir)
     base_checkpoint_dir = checkpoint_dir_cfg if checkpoint_dir_cfg.is_absolute() else BASE_DIR / checkpoint_dir_cfg
 

@@ -8,6 +8,29 @@ from typing import Any, Dict, Optional, Union
 PathLike = Union[str, Path]
 
 
+def get_default_sample_input() -> Dict[str, Any]:
+	return {
+		"traffic_users_per_tti": {
+			"voip": [
+				[5, 5, 5, 5, 5, 5, 5, 5],
+				[40, 40, 40, 40, 45, 45, 45, 45],
+				[75,80,80,75,80,80,75,75],
+			],
+			"cbr": [
+				[50, 50, 55, 50, 50, 55, 55, 55],
+				[5, 5, 5, 5, 5, 5, 5, 5],
+				[75,80,80,75,80,80,75,75],
+
+			],
+			"streaming": [
+				[5, 5, 5, 5, 5, 5, 5, 5],
+				[5, 5, 5, 5, 5, 5, 5, 5],
+				[5, 5, 5, 5, 5, 5, 5, 5],
+			],
+		}
+	}
+
+
 @dataclass(slots=True)
 class EnvironmentConfig:
 	"""Environment wrapper settings for `NetworkSACEnv`."""
@@ -24,6 +47,7 @@ class EnvironmentConfig:
 	config_path: Optional[PathLike] = None
 	input_path: Optional[PathLike] = None
 	metric_file: Optional[PathLike] = None
+	sample_input: Dict[str, Any] = field(default_factory=get_default_sample_input)
 
 
 @dataclass(slots=True)
