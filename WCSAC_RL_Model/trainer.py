@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 if TYPE_CHECKING:
-	from .agent import SACAgent
+	from .agent import WCSACAgent
 	from .config import SACConfig
 	from .env_wrapper import NetworkSACEnv
 	from .replay_buffer import ReplayBuffer
@@ -72,14 +72,14 @@ def save_training_metrics(history: Dict[str, Any], path: Union[str, Path]) -> Pa
 def _import_rl_components() -> tuple[Any, Any, Any]:
 	"""Import RL components lazily to avoid heavy imports at module load."""
 	try:
-		from .agent import SACAgent
+		from .agent import WCSACAgent
 		from .env_wrapper import NetworkSACEnv
 		from .replay_buffer import ReplayBuffer
 	except ImportError:
-		from agent import SACAgent
+		from agent import WCSACAgent
 		from env_wrapper import NetworkSACEnv
 		from replay_buffer import ReplayBuffer
-	return NetworkSACEnv, SACAgent, ReplayBuffer
+	return NetworkSACEnv, WCSACAgent, ReplayBuffer
 
 
 def _build_file_logger(name: str, file_path: Path) -> logging.Logger:
@@ -253,7 +253,7 @@ def _run_evaluation(
 
 	episode_rewards: list[float] = []
 	episode_dti_series: list[Dict[str, Any]] = []
-	evaluation_logger.info("Running deterministic SAC evaluation...")
+	evaluation_logger.info("Running deterministic WCSAC evaluation...")
 
 	for eval_episode_idx in range(1, episodes + 1):
 		evaluation_logger.info("=" * 50)
@@ -327,13 +327,13 @@ def _run_evaluation(
 	return mean_reward_out, episode_dti_series
 
 
-def train_sac(
+def train_wcsac(
 	config: Optional["SACConfig"] = None,
 	) -> Dict[str, Any]:
-	"""Train a Soft Actor-Critic agent on the network environment.
+	"""Train a Worst-Case Soft Actor-Critic agent on the network environment.
 
 	Args:
-		config: Optional grouped SAC config object from WCSAC_RL_Model/config.py.
+		config: Optional grouped SAC/WCSAC config object from WCSAC_RL_Model/config.py.
 			- If None: create defaults with get_default_config().
 			- If provided: use its section values.
 			- If a config field is None: fall back to the legacy default value.
@@ -421,7 +421,7 @@ def train_sac(
 	if seed is not None:
 		np.random.seed(seed)
 
-	NetworkSACEnv, SACAgent, ReplayBuffer = _import_rl_components()
+	NetworkSACEnv, WCSACAgent, ReplayBuffer = _import_rl_components()
 
 	env = NetworkSACEnv(
 		service=service,
@@ -436,7 +436,7 @@ def train_sac(
 	state_dim = int(np.prod(env.observation_shape))
 	action_dim = int(np.prod(env.action_shape))
 
-	# Pass agent hyperparameters from config.agent into SACAgent.
+	# Pass agent hyperparameters from config.agent into WCSACAgent.
 	agent_kwargs: Dict[str, Any] = {
 		"state_dim": state_dim,
 		"action_dim": action_dim,
@@ -453,12 +453,16 @@ def train_sac(
 		agent_kwargs["critic_lr"] = config.agent.critic_lr
 	if config.agent.alpha_lr is not None:
 		agent_kwargs["alpha_lr"] = config.agent.alpha_lr
+	if config.agent.risk_alpha is not None:
+		agent_kwargs["risk_alpha"] = config.agent.risk_alpha
+	if config.agent.max_grad_norm is not None:
+		agent_kwargs["max_grad_norm"] = config.agent.max_grad_norm
 	if config.agent.target_entropy is not None:
 		agent_kwargs["target_entropy"] = config.agent.target_entropy
 	if config.agent.device is not None:
 		agent_kwargs["device"] = config.agent.device
 
-	agent = SACAgent(**agent_kwargs)
+	agent = WCSACAgent(**agent_kwargs)
 	replay_buffer = ReplayBuffer(
 		capacity=replay_capacity,
 		state_dim=state_dim,
@@ -470,8 +474,8 @@ def train_sac(
 
 	training_log_path = checkpoint_path / "training.log"
 	evaluation_log_path = checkpoint_path / "evaluation.log"
-	training_logger = _build_file_logger(f"sac_training_{service}", training_log_path)
-	evaluation_logger = _build_file_logger(f"sac_evaluation_{service}", evaluation_log_path)
+	training_logger = _build_file_logger(f"wcsac_training_{service}", training_log_path)
+	evaluation_logger = _build_file_logger(f"wcsac_evaluation_{service}", evaluation_log_path)
 
 	if hasattr(env, "set_logger"):
 		env.set_logger(training_logger)
@@ -486,6 +490,7 @@ def train_sac(
 		"critic_diff": [],
 		"q_value_loss": [],
 		"alpha": [],
+		"risk_alpha": [],
 		"alpha_loss": [],
 		"entropy": [],
 		"evaluation_rewards": [],
@@ -513,6 +518,7 @@ def train_sac(
 		episode_critic_diffs: list[float] = []
 		episode_q_value_losses: list[float] = []
 		episode_alpha_values: list[float] = []
+		episode_risk_alpha_values: list[float] = []
 		episode_alpha_losses: list[float] = []
 		episode_entropy_values: list[float] = []
 
@@ -566,6 +572,7 @@ def train_sac(
 				critic_diff = abs(critic1_loss - critic2_loss)
 				q_value_loss = 0.5 * (critic1_loss + critic2_loss)
 				alpha_value = float(update_info.get("alpha", float("nan")))
+				risk_alpha_value = float(update_info.get("risk_alpha", float("nan")))
 				alpha_loss = float(update_info.get("alpha_loss", float("nan")))
 
 				entropy_value: float
@@ -582,6 +589,7 @@ def train_sac(
 				episode_critic_diffs.append(critic_diff)
 				episode_q_value_losses.append(q_value_loss)
 				episode_alpha_values.append(alpha_value)
+				episode_risk_alpha_values.append(risk_alpha_value)
 				episode_alpha_losses.append(alpha_loss)
 				episode_entropy_values.append(entropy_value)
 
@@ -601,6 +609,9 @@ def train_sac(
 		mean_critic_diff = _nanmean_or_nan(episode_critic_diffs)
 		mean_q_value_loss = _nanmean_or_nan(episode_q_value_losses)
 		mean_alpha = _nanmean_or_nan(episode_alpha_values)
+		mean_risk_alpha = _nanmean_or_nan(episode_risk_alpha_values)
+		if not np.isfinite(mean_risk_alpha):
+			mean_risk_alpha = float(getattr(agent, "risk_alpha", float("nan")))
 		if not np.isfinite(mean_alpha):
 			mean_alpha = float(agent.alpha.item())
 		mean_alpha_loss = _nanmean_or_nan(episode_alpha_losses)
@@ -613,6 +624,7 @@ def train_sac(
 		history["critic_diff"].append(mean_critic_diff)
 		history["q_value_loss"].append(mean_q_value_loss)
 		history["alpha"].append(mean_alpha)
+		history["risk_alpha"].append(mean_risk_alpha)
 		history["alpha_loss"].append(mean_alpha_loss)
 		history["entropy"].append(mean_entropy)
 		history["training_episode_dti_series"].append(
@@ -635,7 +647,8 @@ def train_sac(
 				f"Critic2 Loss: {mean_critic2_loss:10.6f} | "
 				f"Q Loss: {mean_q_value_loss:10.6f} | "
 				f"Critic Diff: {mean_critic_diff:10.6f} | "
-				f"Alpha: {mean_alpha:8.5f}"
+				f"Alpha: {mean_alpha:8.5f} | "
+				f"Risk Alpha: {mean_risk_alpha:6.4f}"
 			)
 
 		if episode % evaluation_interval == 0:
@@ -661,7 +674,7 @@ def train_sac(
 				)
 
 		if episode % save_interval == 0:
-			episode_ckpt = checkpoint_path / f"sac_{service}_episode_{episode:04d}.pt"
+			episode_ckpt = checkpoint_path / f"wcsac_{service}_episode_{episode:04d}.pt"
 			agent.save(episode_ckpt)
 			episode_cfg = episode_ckpt.with_name(f"{episode_ckpt.stem}_config.json")
 			save_config(config, episode_cfg)
@@ -669,7 +682,7 @@ def train_sac(
 			if verbose:
 				training_logger.info(f"Saved checkpoint: {episode_ckpt}")
 
-	final_ckpt = checkpoint_path / f"sac_{service}_final.pt"
+	final_ckpt = checkpoint_path / f"wcsac_{service}_final.pt"
 	agent.save(final_ckpt)
 	final_cfg = final_ckpt.with_name(f"{final_ckpt.stem}_config.json")
 	save_config(config, final_cfg)
@@ -723,4 +736,9 @@ def train_sac(
 		"saved_checkpoints": saved_checkpoints,
 		"total_steps": total_steps,
 	}
+
+
+def train_sac(config: Optional["SACConfig"] = None) -> Dict[str, Any]:
+	"""Backward-compatible alias that now runs WCSAC training."""
+	return train_wcsac(config=config)
 

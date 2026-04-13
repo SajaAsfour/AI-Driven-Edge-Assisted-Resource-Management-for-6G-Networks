@@ -52,7 +52,7 @@ class EnvironmentConfig:
 
 @dataclass(slots=True)
 class SACAgentConfig:
-	"""SAC model and optimizer hyperparameters for `SACAgent`."""
+	"""SAC/WCSAC model and optimizer hyperparameters for `WCSACAgent`."""
 
 	state_dim: int = 28
 	action_dim: int = 1
@@ -62,6 +62,8 @@ class SACAgentConfig:
 	actor_lr: float = 3e-4
 	critic_lr: float = 3e-4
 	alpha_lr: float = 3e-4
+	risk_alpha: float = 0.1
+	max_grad_norm: Optional[float] = None
 	target_entropy: Optional[float] = None
 	device: Optional[str] = None
 
@@ -79,7 +81,7 @@ class ReplayBufferConfig:
 class TrainingConfig:
 	"""Core training-loop settings currently used by `train_sac`."""
 
-	max_episodes: int = 200
+	max_episodes: int = 20000
 	max_steps_per_episode: int = 2
 	batch_size: int = 16
 	warmup_steps: int = 0
@@ -101,7 +103,7 @@ class CheckpointConfig:
 
 	checkpoint_dir: PathLike = "WCSAC_RL_Model/checkpoints"
 	save_interval: int = 500
-	file_prefix: str = "sac"
+	file_prefix: str = "wcsac"
 
 
 @dataclass(slots=True)

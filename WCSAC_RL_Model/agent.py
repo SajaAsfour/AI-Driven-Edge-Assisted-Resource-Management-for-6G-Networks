@@ -5,7 +5,6 @@ from typing import Dict, Optional, Union
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch import nn
 from torch.optim import Adam
 
@@ -15,13 +14,47 @@ except ImportError:
 	from networks import Critic, GaussianActor
 
 
-class SACAgent:
-	"""Soft Actor-Critic (SAC) agent for continuous action spaces.
+def cvar_weights(values: torch.Tensor, risk_alpha: float, eps: float = 1e-8) -> torch.Tensor:
+	"""Compute detached CVaR lower-tail weights for a batch of scalar values.
 
-	This implementation follows the standard SAC formulation with:
-	- Twin Q critics and target critics
-	- Tanh-squashed Gaussian policy (reparameterization trick)
-	- Automatic entropy temperature tuning via learnable log_alpha
+	Args:
+		values: Tensor with shape [batch_size, 1].
+		risk_alpha: CVaR tail probability in (0, 1].
+		eps: Numerical epsilon for safe normalization.
+
+	Returns:
+		Detached weights tensor with shape [batch_size, 1], normalized so
+		the weight sum is approximately batch_size.
+	"""
+	if not isinstance(values, torch.Tensor):
+		raise ValueError("values must be a torch.Tensor")
+	if values.ndim != 2 or values.shape[1] != 1:
+		raise ValueError(f"values must have shape [batch_size, 1], got {tuple(values.shape)}")
+	if risk_alpha <= 0.0 or risk_alpha > 1.0:
+		raise ValueError(f"risk_alpha must be in (0, 1], got {risk_alpha!r}")
+
+	batch_size = values.shape[0]
+	values_detached = values.detach()
+	q_alpha = torch.quantile(values_detached, q=risk_alpha, dim=0, keepdim=True)
+
+	weights = torch.where(
+		values_detached <= q_alpha,
+		torch.full_like(values_detached, 1.0 / risk_alpha),
+		torch.zeros_like(values_detached),
+	)
+
+	# Normalize to keep scale consistent with mean losses over the batch.
+	weights_sum = weights.sum(dim=0, keepdim=True).clamp_min(eps)
+	weights = weights * (float(batch_size) / weights_sum)
+
+	return weights.detach()
+
+
+class WCSACAgent:
+	"""Worst-Case Soft Actor-Critic (WCSAC) agent for continuous actions.
+
+	This implementation keeps the SAC architecture and entropy auto-tuning,
+	but replaces actor/critic objectives with CVaR lower-tail weighted losses.
 	"""
 
 	def __init__(
@@ -34,6 +67,8 @@ class SACAgent:
 		actor_lr: float = 3e-4,
 		critic_lr: float = 3e-4,
 		alpha_lr: float = 3e-4,
+		risk_alpha: float = 0.1,
+		max_grad_norm: Optional[float] = None,
 		target_entropy: Optional[float] = None,
 		device: Optional[Union[str, torch.device]] = None,
 	) -> None:
@@ -45,11 +80,17 @@ class SACAgent:
 			raise ValueError(f"gamma must be in (0, 1], got {gamma!r}")
 		if tau <= 0.0 or tau > 1.0:
 			raise ValueError(f"tau must be in (0, 1], got {tau!r}")
+		if risk_alpha <= 0.0 or risk_alpha > 1.0:
+			raise ValueError(f"risk_alpha must be in (0, 1], got {risk_alpha!r}")
+		if max_grad_norm is not None and max_grad_norm <= 0.0:
+			raise ValueError(f"max_grad_norm must be > 0 when provided, got {max_grad_norm!r}")
 
 		self.state_dim = state_dim
 		self.action_dim = action_dim
 		self.gamma = float(gamma)
 		self.tau = float(tau)
+		self.risk_alpha = float(risk_alpha)
+		self.max_grad_norm = float(max_grad_norm) if max_grad_norm is not None else None
 
 		if device is None:
 			device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -131,13 +172,13 @@ class SACAgent:
 		return action
 
 	def update(self, replay_buffer, batch_size: int) -> Dict[str, float]:
-		"""Run one SAC training update from a sampled replay batch.
+		"""Run one WCSAC training update from a sampled replay batch.
 
 		Update order:
-		1) Critic update (Bellman backup using target critics)
-		2) Actor update (maximize Q + entropy)
-		3) Temperature update (automatic entropy tuning)
-		4) Soft-update target critics
+		1) Critic update with CVaR-weighted Bellman loss
+		2) Actor update with CVaR-weighted objective
+		3) Temperature update (automatic entropy tuning, unchanged)
+		4) Soft-update target critics (unchanged)
 
 		Args:
 			replay_buffer: Buffer exposing sample(batch_size) -> dict of NumPy arrays.
@@ -167,18 +208,23 @@ class SACAgent:
 			alpha = self.log_alpha.exp()
 			target_v = target_q_next - alpha * next_log_prob
 			target_q = rewards + (1.0 - dones) * self.gamma * target_v
+			critic_weights = cvar_weights(target_q, self.risk_alpha)
 
 		current_q1 = self.critic1(states, actions)
 		current_q2 = self.critic2(states, actions)
-		critic1_loss = F.mse_loss(current_q1, target_q)
-		critic2_loss = F.mse_loss(current_q2, target_q)
+		critic1_loss = (critic_weights * (current_q1 - target_q).pow(2)).mean()
+		critic2_loss = (critic_weights * (current_q2 - target_q).pow(2)).mean()
 
 		self.critic1_optimizer.zero_grad(set_to_none=True)
 		critic1_loss.backward()
+		if self.max_grad_norm is not None:
+			torch.nn.utils.clip_grad_norm_(self.critic1.parameters(), self.max_grad_norm)
 		self.critic1_optimizer.step()
 
 		self.critic2_optimizer.zero_grad(set_to_none=True)
 		critic2_loss.backward()
+		if self.max_grad_norm is not None:
+			torch.nn.utils.clip_grad_norm_(self.critic2.parameters(), self.max_grad_norm)
 		self.critic2_optimizer.step()
 
 		new_actions, log_prob, _ = self.actor(
@@ -191,16 +237,21 @@ class SACAgent:
 		min_q_new = torch.min(q1_new, q2_new)
 
 		alpha_detached = self.log_alpha.exp().detach()
-		actor_loss = (alpha_detached * log_prob - min_q_new).mean()
+		actor_weights = cvar_weights(min_q_new.detach(), self.risk_alpha)
+		actor_loss = -(actor_weights * (min_q_new - alpha_detached * log_prob)).mean()
 
 		self.actor_optimizer.zero_grad(set_to_none=True)
 		actor_loss.backward()
+		if self.max_grad_norm is not None:
+			torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
 		self.actor_optimizer.step()
 
 		alpha_loss = -(self.log_alpha * (log_prob + self.target_entropy).detach()).mean()
 
 		self.alpha_optimizer.zero_grad(set_to_none=True)
 		alpha_loss.backward()
+		if self.max_grad_norm is not None:
+			torch.nn.utils.clip_grad_norm_([self.log_alpha], self.max_grad_norm)
 		self.alpha_optimizer.step()
 
 		self.alpha = self.log_alpha.exp().detach()
@@ -214,6 +265,7 @@ class SACAgent:
 			"actor_loss": float(actor_loss.item()),
 			"alpha_loss": float(alpha_loss.item()),
 			"alpha": float(self.alpha.item()),
+			"risk_alpha": float(self.risk_alpha),
 			"q1_mean": float(current_q1.mean().item()),
 			"q2_mean": float(current_q2.mean().item()),
 			"log_prob_mean": float(log_prob.mean().item()),
@@ -239,6 +291,8 @@ class SACAgent:
 			"action_dim": self.action_dim,
 			"gamma": self.gamma,
 			"tau": self.tau,
+			"risk_alpha": self.risk_alpha,
+			"max_grad_norm": self.max_grad_norm,
 			"target_entropy": self.target_entropy,
 			"actor": self.actor.state_dict(),
 			"critic1": self.critic1.state_dict(),
@@ -294,3 +348,14 @@ class SACAgent:
 
 		if "target_entropy" in checkpoint:
 			self.target_entropy = float(checkpoint["target_entropy"])
+		if "risk_alpha" in checkpoint:
+			self.risk_alpha = float(checkpoint["risk_alpha"])
+		if "max_grad_norm" in checkpoint:
+			loaded_max_grad_norm = checkpoint["max_grad_norm"]
+			self.max_grad_norm = (
+				float(loaded_max_grad_norm) if loaded_max_grad_norm is not None else None
+			)
+
+
+# Backward-compatible alias so legacy imports keep working.
+SACAgent = WCSACAgent

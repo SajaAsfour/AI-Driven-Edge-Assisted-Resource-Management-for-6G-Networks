@@ -11,7 +11,7 @@ import numpy as np
 
 def load_training_metrics(path: Union[str, Path]) -> Dict[str, Any]:
 	"""
-	Load SAC training metrics from JSON safely.
+	Load WCSAC training metrics from JSON safely.
 
 	Args:
 		path: Path to `training_metrics.json`.
@@ -99,7 +99,7 @@ def plot_training_metrics(
 	show: bool = False,
 ) -> List[Path]:
 	"""
-	Plot advanced SAC training metrics and save each figure as PNG.
+	Plot advanced WCSAC training metrics and save each figure as PNG.
 
 	Plots:
 	- actor_loss
@@ -107,6 +107,7 @@ def plot_training_metrics(
 	- critic2_loss
 	- q_value_loss
 	- alpha
+	- risk_alpha (optional for backward compatibility)
 	- alpha_loss
 	- entropy
 
@@ -136,15 +137,16 @@ def plot_training_metrics(
 	found_metrics: List[str] = []
 	skipped_metrics: List[str] = []
 
-	# New SAC metric keys only.
+	# WCSAC metric keys. `risk_alpha` is optional for older history files.
 	metric_specs = [
-		("actor_loss", "Actor Loss", "Loss", f"sac_{service_name}_actor_loss.png"),
-		("critic1_loss", "Critic 1 Loss", "Loss", f"sac_{service_name}_critic1_loss.png"),
-		("critic2_loss", "Critic 2 Loss", "Loss", f"sac_{service_name}_critic2_loss.png"),
-		("q_value_loss", "Q-Value Loss", "Loss", f"sac_{service_name}_q_value_loss.png"),
-		("alpha", "Alpha", "Alpha", f"sac_{service_name}_alpha.png"),
-		("alpha_loss", "Alpha Loss", "Loss", f"sac_{service_name}_alpha_loss.png"),
-		("entropy", "Entropy", "Entropy", f"sac_{service_name}_entropy.png"),
+		("actor_loss", "WCSAC Actor Loss", "Loss", f"wcsac_{service_name}_actor_loss.png"),
+		("critic1_loss", "WCSAC Critic 1 Loss", "Loss", f"wcsac_{service_name}_critic1_loss.png"),
+		("critic2_loss", "WCSAC Critic 2 Loss", "Loss", f"wcsac_{service_name}_critic2_loss.png"),
+		("q_value_loss", "WCSAC Q-Value Loss", "Loss", f"wcsac_{service_name}_q_value_loss.png"),
+		("alpha", "WCSAC Alpha", "Alpha", f"wcsac_{service_name}_alpha.png"),
+		("risk_alpha", "WCSAC Risk Alpha", "Risk Alpha", f"wcsac_{service_name}_risk_alpha.png"),
+		("alpha_loss", "WCSAC Alpha Loss", "Loss", f"wcsac_{service_name}_alpha_loss.png"),
+		("entropy", "WCSAC Entropy", "Entropy", f"wcsac_{service_name}_entropy.png"),
 	]
 
 	for metric_key, title, y_label, filename in metric_specs:
@@ -168,7 +170,7 @@ def plot_training_metrics(
 
 def main() -> None:
 	"""CLI entry point for training metrics plotting."""
-	parser = argparse.ArgumentParser(description="Plot SAC training metrics from JSON")
+	parser = argparse.ArgumentParser(description="Plot WCSAC training metrics from JSON")
 	parser.add_argument(
 		"--metrics",
 		required=True,
