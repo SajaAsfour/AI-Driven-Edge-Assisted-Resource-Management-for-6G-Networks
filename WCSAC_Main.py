@@ -432,8 +432,8 @@ def display_main_execution_menu() -> None:
     print("MAIN MENU")
     print("=" * 60)
     print("  1. Run netowrk model simulation")
-    print("  2. Train SAC")
-    print("  3. Evaluate trained SAC")
+    print("  2. Train WCSAC")
+    print("  3. Evaluate trained WCSAC")
     print("  4. Predict RBs from custom traffic input")
     print("  5. Exit")
     print("=" * 60)
@@ -538,12 +538,19 @@ def resolve_checkpoint_dir(base_dir: Path, service: str, profile_mode: str) -> P
 
 
 def resolve_random_final_checkpoint(base_checkpoint_dir: Path, service: str) -> Path:
-    ckpt_path = resolve_checkpoint_dir(base_checkpoint_dir, service, "random") / f"sac_{service}_final.pt"
-    if not ckpt_path.exists():
-        raise FileNotFoundError(
-            f"Random final checkpoint not found for service '{service}': {ckpt_path}"
-        )
-    return ckpt_path
+    checkpoint_dir = resolve_checkpoint_dir(base_checkpoint_dir, service, "random")
+    preferred_path = checkpoint_dir / f"wcsac_{service}_final.pt"
+    legacy_path = checkpoint_dir / f"sac_{service}_final.pt"
+
+    if preferred_path.exists():
+        return preferred_path
+    if legacy_path.exists():
+        return legacy_path
+
+    raise FileNotFoundError(
+        f"Random final checkpoint not found for service '{service}': "
+        f"checked {preferred_path} and {legacy_path}"
+    )
 
 
 def choose_evaluation_mode(train_mode: str) -> str:
@@ -603,7 +610,10 @@ def choose_checkpoint_for_evaluation(checkpoint_dir: Path) -> Optional[Path]:
 
 
 def _infer_service_from_checkpoint_name(checkpoint_path: Path) -> Optional[str]:
-    match = re.match(r"^sac_(voip|cbr|streaming)_(?:episode_\d+|final)\.pt$", checkpoint_path.name)
+    match = re.match(
+        r"^(?:wcsac|sac)_(voip|cbr|streaming)_(?:episode_\d+|final)\.pt$",
+        checkpoint_path.name,
+    )
     if not match:
         return None
     return str(match.group(1)).strip().lower()
@@ -754,10 +764,10 @@ def run_networkmodel(config: Dict[str, Any], config_dir: Path, logger: logging.L
                 input("Press ENTER to continue to next DTI...")
 
 
-def run_sac_training_mode() -> None:
+def run_wcsac_training_mode() -> None:
 
     try:
-        from WCSAC_RL_Model.trainer import train_sac
+        from WCSAC_RL_Model.trainer import train_wcsac
         from WCSAC_RL_Model.config import get_default_config
     except Exception as e:
         print(f"ERROR: RL training modules could not be imported: {e}")
@@ -785,27 +795,28 @@ def run_sac_training_mode() -> None:
     cfg.checkpoint.checkpoint_dir = checkpoint_dir
     cfg.training.verbose = True
 
-    print("\nStarting SAC training (config-driven)...")
+    print("\nStarting WCSAC training (config-driven)...")
     print(f"Checkpoint output directory: {checkpoint_dir}")
+    print(f"WCSAC risk_alpha: {float(cfg.agent.risk_alpha):.4f}")
 
     try:
-        train_result = train_sac(config=cfg)
+        train_result = train_wcsac(config=cfg)
     except Exception as e:
-        print(f"ERROR: SAC training failed: {e}")
+        print(f"ERROR: WCSAC training failed: {e}")
         return
 
     checkpoints = train_result.get("saved_checkpoints", [])
-    print("\nSAC training completed successfully.")
+    print("\nWCSAC training completed successfully.")
     if checkpoints:
         print(f"Latest checkpoint: {checkpoints[-1]}")
 
 
-def run_sac_evaluation_mode() -> None:
+def run_wcsac_evaluation_mode() -> None:
     try:
         from WCSAC_RL_Model.trainer import load_config
         from WCSAC_RL_Model.config import get_default_config
         from WCSAC_RL_Model.env_wrapper import NetworkSACEnv
-        from WCSAC_RL_Model.agent import SACAgent
+        from WCSAC_RL_Model.agent import WCSACAgent
     except Exception as e:
         print(f"ERROR: RL evaluation modules could not be imported: {e}")
         return
@@ -818,7 +829,7 @@ def run_sac_evaluation_mode() -> None:
     while True:
         selected_service_for_folder = choose_service_for_evaluation()
         if selected_service_for_folder is None:
-            print("\nLeaving SAC evaluation mode. Returning to main menu...")
+            print("\nLeaving WCSAC evaluation mode. Returning to main menu...")
             break
 
         selected_mode_for_folder = choose_traffic_profile_mode_for_rl()
@@ -908,7 +919,7 @@ def run_sac_evaluation_mode() -> None:
         if eval_steps <= 0:
             eval_steps = 1
 
-        evaluation_logger = logging.getLogger("sac_evaluation_standalone")
+        evaluation_logger = logging.getLogger("wcsac_evaluation_standalone")
         evaluation_logger.setLevel(logging.INFO)
         evaluation_logger.propagate = False
         for handler in list(evaluation_logger.handlers):
@@ -940,14 +951,21 @@ def run_sac_evaluation_mode() -> None:
                 env.set_logging_context("evaluation")
             state_dim = int(np.prod(env.observation_shape))
             action_dim = int(np.prod(env.action_shape))
+            loaded_agent_cfg_raw = loaded_config.get("agent", {}) if isinstance(loaded_config, dict) else {}
+            loaded_agent_cfg = loaded_agent_cfg_raw if isinstance(loaded_agent_cfg_raw, dict) else {}
+            risk_alpha = loaded_agent_cfg.get("risk_alpha", cfg.agent.risk_alpha)
+            try:
+                risk_alpha = float(risk_alpha)
+            except (TypeError, ValueError):
+                risk_alpha = float(cfg.agent.risk_alpha)
 
-            agent = SACAgent(state_dim=state_dim, action_dim=action_dim)
+            agent = WCSACAgent(state_dim=state_dim, action_dim=action_dim, risk_alpha=risk_alpha)
             agent.load(ckpt_path)
 
             rewards: List[float] = []
             evaluation_episode_dti_series: List[Dict[str, Any]] = []
-            evaluation_logger.info("Running deterministic SAC evaluation...")
-            print("\nRunning deterministic SAC evaluation...")
+            evaluation_logger.info("Running deterministic WCSAC evaluation...")
+            print("\nRunning deterministic WCSAC evaluation...")
             for episode in range(1, eval_episodes + 1):
                 evaluation_logger.info("=" * 50)
                 evaluation_logger.info(f"START EVALUATION EPISODE {episode}")
@@ -1018,19 +1036,20 @@ def run_sac_evaluation_mode() -> None:
 
 def predict_resource_blocks_from_input(
     sample_input: Dict[str, Any],
-    base_checkpoint_dir: Union[str, Path] = "RL_Model/checkpoints",
+    base_checkpoint_dir: Union[str, Path] = "WCSAC_RL_Model/checkpoints",
     seed: Optional[int] = 42,
+    default_risk_alpha: float = 0.1,
 ) -> Dict[str, Any]:
     """
-    Predict per-DTI RB allocations for each service using trained SAC checkpoints.
+    Predict per-DTI RB allocations for each service using trained WCSAC checkpoints.
 
-    This function reuses existing `NetworkSACEnv` and `SACAgent` inference logic
+    This function reuses existing `NetworkSACEnv` and `WCSACAgent` inference logic
     (`env.infer_rb_from_traffic(...)`) without rewriting policy behavior.
     """
     try:
         from WCSAC_RL_Model.trainer import load_config
         from WCSAC_RL_Model.env_wrapper import NetworkSACEnv
-        from WCSAC_RL_Model.agent import SACAgent
+        from WCSAC_RL_Model.agent import WCSACAgent
     except Exception as e:
         raise RuntimeError(f"RL inference modules could not be imported: {e}") from e
 
@@ -1063,6 +1082,7 @@ def predict_resource_blocks_from_input(
         env_service = service
         env_seed = seed
         env_rb_min = None
+        risk_alpha = default_risk_alpha
 
         config_path = ckpt_path.with_name(f"{ckpt_path.stem}_config.json")
         if config_path.exists():
@@ -1072,6 +1092,13 @@ def predict_resource_blocks_from_input(
                 env_service = env_cfg.get("service", env_service)
                 env_seed = env_cfg.get("seed", env_seed)
                 env_rb_min = env_cfg.get("rb_min", env_rb_min)
+            agent_cfg = loaded_config.get("agent", {})
+            if isinstance(agent_cfg, dict):
+                loaded_risk_alpha = agent_cfg.get("risk_alpha", risk_alpha)
+                try:
+                    risk_alpha = float(loaded_risk_alpha)
+                except (TypeError, ValueError):
+                    risk_alpha = float(default_risk_alpha)
 
         env_kwargs: Dict[str, Any] = {"service": env_service, "seed": env_seed, "silent": True}
         if env_rb_min is not None:
@@ -1081,7 +1108,7 @@ def predict_resource_blocks_from_input(
         state_dim = int(np.prod(env.observation_shape))
         action_dim = int(np.prod(env.action_shape))
 
-        agent = SACAgent(state_dim=state_dim, action_dim=action_dim)
+        agent = WCSACAgent(state_dim=state_dim, action_dim=action_dim, risk_alpha=float(risk_alpha))
         agent.load(ckpt_path)
 
         service_traffic = traffic_all[service]
@@ -1136,7 +1163,7 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
-def run_sac_custom_inference_mode() -> None:
+def run_wcsac_custom_inference_mode() -> None:
     try:
         from WCSAC_RL_Model.config import get_default_config
     except Exception as e:
@@ -1153,13 +1180,14 @@ def run_sac_custom_inference_mode() -> None:
             sample_input=sample_input,
             base_checkpoint_dir=base_checkpoint_dir,
             seed=42,
+            default_risk_alpha=float(cfg.agent.risk_alpha),
         )
     except Exception as e:
-        print(f"ERROR: Custom SAC inference failed: {e}")
+        print(f"ERROR: Custom WCSAC inference failed: {e}")
         return
 
     print("\n" + "=" * 60)
-    print("CUSTOM SAC INFERENCE OUTPUT")
+    print("CUSTOM WCSAC INFERENCE OUTPUT")
     print("=" * 60)
     for service, rb_list in output["predicted_resource_blocks_per_dti"].items():
         print(f"\nService: {service}")
@@ -1210,11 +1238,11 @@ if __name__ == "__main__":
         if mode_choice == "1":
             run_networkmodel(config=config, config_dir=CONFIG_DIR, logger=logger)
         elif mode_choice == "2":
-            run_sac_training_mode()
+            run_wcsac_training_mode()
         elif mode_choice == "3":
-            run_sac_evaluation_mode()
+            run_wcsac_evaluation_mode()
         elif mode_choice == "4":
-            run_sac_custom_inference_mode()
+            run_wcsac_custom_inference_mode()
         else:
             break
     
