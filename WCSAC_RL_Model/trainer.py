@@ -193,9 +193,14 @@ def _save_episode_dti_plots(
 			plt.ylabel("beta_current")
 			plt.grid(True)
 			plt.tight_layout()
-			plt.savefig(beta_path, dpi=150)
+			beta_path.parent.mkdir(parents=True, exist_ok=True)
+			try:
+				plt.savefig(beta_path, dpi=150)
+			except OSError:
+				pass
 			plt.close()
-			generated += 1
+			if beta_path.exists():
+				generated += 1
 
 		if min_len_reward > 0:
 			plt.figure(figsize=(8, 4.5))
@@ -205,9 +210,14 @@ def _save_episode_dti_plots(
 			plt.ylabel("reward_current")
 			plt.grid(True)
 			plt.tight_layout()
-			plt.savefig(reward_path, dpi=150)
+			reward_path.parent.mkdir(parents=True, exist_ok=True)
+			try:
+				plt.savefig(reward_path, dpi=150)
+			except OSError:
+				pass
 			plt.close()
-			generated += 1
+			if reward_path.exists():
+				generated += 1
 
 		if min_len_utilization > 0:
 			plt.figure(figsize=(8, 4.5))
@@ -217,9 +227,14 @@ def _save_episode_dti_plots(
 			plt.ylabel("utilization (rb_used / C)")
 			plt.grid(True)
 			plt.tight_layout()
-			plt.savefig(utilization_path, dpi=150)
+			utilization_path.parent.mkdir(parents=True, exist_ok=True)
+			try:
+				plt.savefig(utilization_path, dpi=150)
+			except OSError:
+				pass
 			plt.close()
-			generated += 1
+			if utilization_path.exists():
+				generated += 1
 
 		if min_len_beta_utilization > 0:
 			plt.figure(figsize=(8, 4.5))
@@ -231,9 +246,14 @@ def _save_episode_dti_plots(
 			plt.ylabel("utilization (rb_used / C)")
 			plt.grid(True)
 			plt.tight_layout()
-			plt.savefig(beta_vs_utilization_path, dpi=150)
+			beta_vs_utilization_path.parent.mkdir(parents=True, exist_ok=True)
+			try:
+				plt.savefig(beta_vs_utilization_path, dpi=150)
+			except OSError:
+				pass
 			plt.close()
-			generated += 1
+			if beta_vs_utilization_path.exists():
+				generated += 1
 
 	return generated
 
@@ -695,7 +715,16 @@ def train_wcsac(
 	save_training_metrics(history, metrics_path)
 
 	evaluation_dti_plot_dir = checkpoint_path / "evaluation_dti_plots" / service
-	evaluation_plots_count = _save_episode_dti_plots(latest_evaluation_episode_dti_series, evaluation_dti_plot_dir)
+	try:
+		evaluation_plots_count = _save_episode_dti_plots(
+			latest_evaluation_episode_dti_series,
+			evaluation_dti_plot_dir,
+		)
+	except OSError as plot_io_error:
+		evaluation_plots_count = 0
+		training_logger.warning(
+			f"Skipping per-episode DTI evaluation plots due to filesystem error: {plot_io_error}"
+		)
 	if verbose:
 		training_logger.info(
 			f"Saved per-episode DTI evaluation plots: {evaluation_plots_count} files at {evaluation_dti_plot_dir}"
