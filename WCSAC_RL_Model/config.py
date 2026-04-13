@@ -33,7 +33,7 @@ def get_default_sample_input() -> Dict[str, Any]:
 
 @dataclass(slots=True)
 class EnvironmentConfig:
-	"""Environment wrapper settings for `NetworkSACEnv`."""
+	"""Environment wrapper settings for `NetworkWCSACEnv`."""
 
 	service: str = "voip"
 	traffic_profile_mode: str = "fixed"
@@ -51,8 +51,8 @@ class EnvironmentConfig:
 
 
 @dataclass(slots=True)
-class SACAgentConfig:
-	"""SAC/WCSAC model and optimizer hyperparameters for `WCSACAgent`."""
+class WCSACAgentConfig:
+	"""WCSAC model and optimizer hyperparameters for `WCSACAgent`."""
 
 	state_dim: int = 28
 	action_dim: int = 1
@@ -79,7 +79,7 @@ class ReplayBufferConfig:
 
 @dataclass(slots=True)
 class TrainingConfig:
-	"""Core training-loop settings currently used by `train_sac`."""
+	"""Core training-loop settings currently used by `train_wcsac`."""
 
 	max_episodes: int = 40000
 	max_steps_per_episode: int = 2
@@ -102,15 +102,15 @@ class CheckpointConfig:
 	"""Checkpointing settings for periodic and final saves."""
 
 	checkpoint_dir: PathLike = "WCSAC_RL_Model/checkpoints"
-	save_interval: int = 500
+	save_interval: int = 1000
 	file_prefix: str = "wcsac"
 
 
 @dataclass(slots=True)
-class SACConfig:
+class WCSACConfig:
 
 	environment: EnvironmentConfig = field(default_factory=EnvironmentConfig)
-	agent: SACAgentConfig = field(default_factory=SACAgentConfig)
+	agent: WCSACAgentConfig = field(default_factory=WCSACAgentConfig)
 	replay_buffer: ReplayBufferConfig = field(default_factory=ReplayBufferConfig)
 	training: TrainingConfig = field(default_factory=TrainingConfig)
 	evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
@@ -137,6 +137,6 @@ class SACConfig:
 		}
 
 
-def get_default_config() -> SACConfig:
-	"""Return the default project SAC configuration."""
-	return SACConfig()
+def get_default_config() -> WCSACConfig:
+	"""Return the default project WCSAC configuration."""
+	return WCSACConfig()

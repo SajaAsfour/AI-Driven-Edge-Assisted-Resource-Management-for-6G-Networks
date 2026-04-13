@@ -12,8 +12,8 @@ import numpy as np
 
 if TYPE_CHECKING:
 	from .agent import WCSACAgent
-	from .config import SACConfig
-	from .env_wrapper import NetworkSACEnv
+	from .config import WCSACConfig
+	from .env_wrapper import NetworkWCSACEnv
 	from .replay_buffer import ReplayBuffer
 
 
@@ -73,13 +73,13 @@ def _import_rl_components() -> tuple[Any, Any, Any]:
 	"""Import RL components lazily to avoid heavy imports at module load."""
 	try:
 		from .agent import WCSACAgent
-		from .env_wrapper import NetworkSACEnv
+		from .env_wrapper import NetworkWCSACEnv
 		from .replay_buffer import ReplayBuffer
 	except ImportError:
 		from agent import WCSACAgent
-		from env_wrapper import NetworkSACEnv
+		from env_wrapper import NetworkWCSACEnv
 		from replay_buffer import ReplayBuffer
-	return NetworkSACEnv, WCSACAgent, ReplayBuffer
+	return NetworkWCSACEnv, WCSACAgent, ReplayBuffer
 
 
 def _build_file_logger(name: str, file_path: Path) -> logging.Logger:
@@ -328,12 +328,12 @@ def _run_evaluation(
 
 
 def train_wcsac(
-	config: Optional["SACConfig"] = None,
+	config: Optional["WCSACConfig"] = None,
 	) -> Dict[str, Any]:
 	"""Train a Worst-Case Soft Actor-Critic agent on the network environment.
 
 	Args:
-		config: Optional grouped SAC/WCSAC config object from WCSAC_RL_Model/config.py.
+		config: Optional grouped WCSAC config object from WCSAC_RL_Model/config.py.
 			- If None: create defaults with get_default_config().
 			- If provided: use its section values.
 			- If a config field is None: fall back to the legacy default value.
@@ -356,14 +356,14 @@ def train_wcsac(
 	default_verbose = True
 
 	try:
-		from .config import SACConfig, get_default_config
+		from .config import WCSACConfig, get_default_config
 	except ImportError:
-		from config import SACConfig, get_default_config
+		from config import WCSACConfig, get_default_config
 
 	if config is None:
 		config = get_default_config()
-	elif not isinstance(config, SACConfig):
-		raise TypeError("config must be an instance of SACConfig")
+	elif not isinstance(config, WCSACConfig):
+		raise TypeError("config must be an instance of WCSACConfig")
 
 	def _from_config(cfg_value: Any, fallback: Any) -> Any:
 		return fallback if cfg_value is None else cfg_value
@@ -421,9 +421,9 @@ def train_wcsac(
 	if seed is not None:
 		np.random.seed(seed)
 
-	NetworkSACEnv, WCSACAgent, ReplayBuffer = _import_rl_components()
+	NetworkWCSACEnv, WCSACAgent, ReplayBuffer = _import_rl_components()
 
-	env = NetworkSACEnv(
+	env = NetworkWCSACEnv(
 		service=service,
 		traffic_profile_mode=traffic_profile_mode,
 		fixed_profile_name=fixed_profile_name,
@@ -737,8 +737,4 @@ def train_wcsac(
 		"total_steps": total_steps,
 	}
 
-
-def train_sac(config: Optional["SACConfig"] = None) -> Dict[str, Any]:
-	"""Backward-compatible alias that now runs WCSAC training."""
-	return train_wcsac(config=config)
 

@@ -103,7 +103,7 @@ def build_mlp(
 
 class GaussianActor(nn.Module):
 	"""
-	Gaussian policy network used by Soft Actor-Critic.
+	Gaussian policy network used by Worst-Case Soft Actor-Critic.
 
 	Given a state, it predicts Gaussian parameters (`mean`, `log_std`), samples
 	with reparameterization (`rsample`), then applies `tanh` squashing.
@@ -196,7 +196,7 @@ class GaussianActor(nn.Module):
 
 		log_prob: Optional[torch.Tensor]
 		if with_logprob:
-			# SAC tanh correction term:
+			# WCSAC tanh correction term:
 			# log pi(a|s) = log N(u; mean, std) - sum(log(1 - tanh(u)^2))
 			raw_log_prob = dist.log_prob(pre_tanh)
 			correction = torch.log(1.0 - action.pow(2) + EPS)
@@ -212,7 +212,7 @@ class GaussianActor(nn.Module):
 
 class Critic(nn.Module):
 	"""
-	Q-network for SAC.
+	Q-network for WCSAC.
 
 	Input: concatenated `(state, action)`.
 	Output: scalar Q-value.

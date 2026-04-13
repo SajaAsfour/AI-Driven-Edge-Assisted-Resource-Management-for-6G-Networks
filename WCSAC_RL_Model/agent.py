@@ -53,7 +53,7 @@ def cvar_weights(values: torch.Tensor, risk_alpha: float, eps: float = 1e-8) -> 
 class WCSACAgent:
 	"""Worst-Case Soft Actor-Critic (WCSAC) agent for continuous actions.
 
-	This implementation keeps the SAC architecture and entropy auto-tuning,
+	This implementation keeps the base Soft Actor-Critic architecture and entropy auto-tuning,
 	but replaces actor/critic objectives with CVaR lower-tail weighted losses.
 	"""
 
@@ -356,6 +356,3 @@ class WCSACAgent:
 				float(loaded_max_grad_norm) if loaded_max_grad_norm is not None else None
 			)
 
-
-# Backward-compatible alias so legacy imports keep working.
-SACAgent = WCSACAgent

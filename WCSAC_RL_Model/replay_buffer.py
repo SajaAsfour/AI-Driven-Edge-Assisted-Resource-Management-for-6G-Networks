@@ -1,4 +1,4 @@
-"""Replay buffer implementation for SAC (off-policy RL).
+"""Replay buffer implementation for WCSAC (off-policy RL).
 
 This module provides a NumPy-backed circular replay buffer that stores
 transitions in the form:
@@ -13,7 +13,7 @@ import numpy as np
 
 
 class ReplayBuffer:
-	"""Fixed-size circular replay buffer for continuous-control SAC.
+	"""Fixed-size circular replay buffer for continuous-control WCSAC.
 
 	Parameters
 	----------

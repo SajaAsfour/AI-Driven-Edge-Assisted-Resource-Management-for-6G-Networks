@@ -26,11 +26,11 @@ from WCSAC_RL_Model.traffic_profiles import (
 Number = Union[int, float]
 
 
-class NetworkSACEnv:
+class NetworkWCSACEnv:
 	"""
 	This wrapper is intentionally lightweight:
 	- one service at a time (`voip`, `cbr`, or `streaming`)
-	- single continuous SAC action mapped to an integer RB allocation
+	- single continuous WCSAC action mapped to an integer RB allocation
 
 	Notes on integration with current simulation:
 	- Traffic demand per DTI is profile-driven (fixed profile or per-step random profile).
@@ -78,8 +78,8 @@ class NetworkSACEnv:
 			config_path: Optional path to network config JSON.
 			input_path: Optional path to network input JSON.
 			metric_file: Optional path to per-service metric summary JSON.
-			action_low: Minimum SAC action value before mapping.
-			action_high: Maximum SAC action value before mapping.
+			action_low: Minimum WCSAC action value before mapping.
+			action_high: Maximum WCSAC action value before mapping.
 			rb_min: Minimum RB decision for one DTI.
 			rb_max: Maximum RB decision for one DTI. Defaults to config `c`.
 			seed: Optional numpy RNG seed.
@@ -406,7 +406,7 @@ class NetworkSACEnv:
 		Execute one DTI transition.
 
 		Args:
-			action: Continuous SAC action. It is mapped to integer RB allocation.
+			action: Continuous WCSAC action. It is mapped to integer RB allocation.
 
 		Returns:
 			next_state: Flat NumPy state vector.
@@ -617,7 +617,7 @@ class NetworkSACEnv:
 
 	@property
 	def action_shape(self) -> Tuple[int]:
-		"""Return action shape expected by SAC actor."""
+		"""Return action shape expected by WCSAC actor."""
 		return (1,)
 
 	@property
@@ -632,7 +632,7 @@ class NetworkSACEnv:
 
 	def _action_to_rb(self, action: Union[Number, np.ndarray, list, tuple]) -> int:
 		"""
-		Convert a SAC continuous action to a valid integer RB allocation.
+		Convert a WCSAC continuous action to a valid integer RB allocation.
 
 		Mapping:
 			1) extract scalar action value
