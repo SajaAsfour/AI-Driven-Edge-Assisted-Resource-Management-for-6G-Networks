@@ -12,9 +12,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
 	sys.path.insert(0, str(PROJECT_ROOT))
 
-from SAC_Main import load_configuration, load_metric_matrices
+from WCSAC_Main import load_configuration, load_metric_matrices
 from Network_Model.src.NetworkModel import NetworkModel
-from SAC_RL_Model.traffic_profiles import (
+from WCSAC_RL_Model.traffic_profiles import (
 	build_dti_from_profile,
 	build_traffic_matrix_from_profile,
 	get_default_profiles,
