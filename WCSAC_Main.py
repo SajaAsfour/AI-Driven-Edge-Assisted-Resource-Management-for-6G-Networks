@@ -815,7 +815,7 @@ def run_wcsac_evaluation_mode() -> None:
     try:
         from WCSAC_RL_Model.trainer import load_config
         from WCSAC_RL_Model.config import get_default_config
-        from WCSAC_RL_Model.env_wrapper import NetworkSACEnv
+        from WCSAC_RL_Model.env_wrapper import NetworkWCSACEnv
         from WCSAC_RL_Model.agent import WCSACAgent
     except Exception as e:
         print(f"ERROR: RL evaluation modules could not be imported: {e}")
@@ -944,7 +944,7 @@ def run_wcsac_evaluation_mode() -> None:
             if train_rb_min is not None:
                 env_kwargs["rb_min"] = train_rb_min
 
-            env = NetworkSACEnv(**env_kwargs)
+            env = NetworkWCSACEnv(**env_kwargs)
             if hasattr(env, "set_logger"):
                 env.set_logger(evaluation_logger)
             if hasattr(env, "set_logging_context"):
@@ -1043,12 +1043,12 @@ def predict_resource_blocks_from_input(
     """
     Predict per-DTI RB allocations for each service using trained WCSAC checkpoints.
 
-    This function reuses existing `NetworkSACEnv` and `WCSACAgent` inference logic
+    This function reuses existing `NetworkWCSACEnv` and `WCSACAgent` inference logic
     (`env.infer_rb_from_traffic(...)`) without rewriting policy behavior.
     """
     try:
         from WCSAC_RL_Model.trainer import load_config
-        from WCSAC_RL_Model.env_wrapper import NetworkSACEnv
+        from WCSAC_RL_Model.env_wrapper import NetworkWCSACEnv
         from WCSAC_RL_Model.agent import WCSACAgent
     except Exception as e:
         raise RuntimeError(f"RL inference modules could not be imported: {e}") from e
@@ -1104,7 +1104,7 @@ def predict_resource_blocks_from_input(
         if env_rb_min is not None:
             env_kwargs["rb_min"] = env_rb_min
 
-        env = NetworkSACEnv(**env_kwargs)
+        env = NetworkWCSACEnv(**env_kwargs)
         state_dim = int(np.prod(env.observation_shape))
         action_dim = int(np.prod(env.action_shape))
 
