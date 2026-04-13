@@ -15,7 +15,7 @@ if str(NETWORK_MODEL_DIR) not in sys.path:
     sys.path.insert(0, str(NETWORK_MODEL_DIR))
 
 from Network_Model.src.NetworkModel import NetworkModel
-from RL_Model.traffic_profiles import get_default_profiles, get_profile_or_raise
+from SAC_RL_Model.traffic_profiles import get_default_profiles, get_profile_or_raise
 Number = Union[int, float]
 
 
@@ -757,8 +757,8 @@ def run_networkmodel(config: Dict[str, Any], config_dir: Path, logger: logging.L
 def run_sac_training_mode() -> None:
 
     try:
-        from RL_Model.trainer import train_sac
-        from RL_Model.config import get_default_config
+        from SAC_RL_Model.trainer import train_sac
+        from SAC_RL_Model.config import get_default_config
     except Exception as e:
         print(f"ERROR: RL training modules could not be imported: {e}")
         return
@@ -802,10 +802,10 @@ def run_sac_training_mode() -> None:
 
 def run_sac_evaluation_mode() -> None:
     try:
-        from RL_Model.trainer import load_config
-        from RL_Model.config import get_default_config
-        from RL_Model.env_wrapper import NetworkSACEnv
-        from RL_Model.agent import SACAgent
+        from SAC_RL_Model.trainer import load_config
+        from SAC_RL_Model.config import get_default_config
+        from SAC_RL_Model.env_wrapper import NetworkSACEnv
+        from SAC_RL_Model.agent import SACAgent
     except Exception as e:
         print(f"ERROR: RL evaluation modules could not be imported: {e}")
         return
@@ -1028,9 +1028,9 @@ def predict_resource_blocks_from_input(
     (`env.infer_rb_from_traffic(...)`) without rewriting policy behavior.
     """
     try:
-        from RL_Model.trainer import load_config
-        from RL_Model.env_wrapper import NetworkSACEnv
-        from RL_Model.agent import SACAgent
+        from SAC_RL_Model.trainer import load_config
+        from SAC_RL_Model.env_wrapper import NetworkSACEnv
+        from SAC_RL_Model.agent import SACAgent
     except Exception as e:
         raise RuntimeError(f"RL inference modules could not be imported: {e}") from e
 
@@ -1138,7 +1138,7 @@ def _json_safe(value: Any) -> Any:
 
 def run_sac_custom_inference_mode() -> None:
     try:
-        from RL_Model.config import get_default_config
+        from SAC_RL_Model.config import get_default_config
     except Exception as e:
         print(f"ERROR: RL config modules could not be imported: {e}")
         return

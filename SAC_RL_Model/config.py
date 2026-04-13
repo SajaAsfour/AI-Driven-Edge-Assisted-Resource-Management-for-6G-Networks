@@ -99,7 +99,7 @@ class EvaluationConfig:
 class CheckpointConfig:
 	"""Checkpointing settings for periodic and final saves."""
 
-	checkpoint_dir: PathLike = "RL_Model/checkpoints"
+	checkpoint_dir: PathLike = "SAC_RL_Model/checkpoints"
 	save_interval: int = 500
 	file_prefix: str = "sac"
 

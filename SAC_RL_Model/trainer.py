@@ -333,7 +333,7 @@ def train_sac(
 	"""Train a Soft Actor-Critic agent on the network environment.
 
 	Args:
-		config: Optional grouped SAC config object from RL_Model/config.py.
+		config: Optional grouped SAC config object from SAC_RL_Model/config.py.
 			- If None: create defaults with get_default_config().
 			- If provided: use its section values.
 			- If a config field is None: fall back to the legacy default value.
@@ -351,7 +351,7 @@ def train_sac(
 	default_replay_capacity = 100_000
 	default_rb_min = 1
 	default_evaluation_episodes = 5
-	default_checkpoint_dir: Union[str, Path] = "RL_Model/checkpoints"
+	default_checkpoint_dir: Union[str, Path] = "SAC_RL_Model/checkpoints"
 	default_seed: Optional[int] = 42
 	default_verbose = True
 
@@ -691,7 +691,7 @@ def train_sac(
 
 	try:
 		try:
-			from RL_Model.plot_metrics import plot_training_metrics
+			from SAC_RL_Model.plot_metrics import plot_training_metrics
 		except ImportError:
 			from .plot_metrics import plot_training_metrics
 
