@@ -63,7 +63,7 @@ class SACAgentConfig:
 	critic_lr: float = 3e-4
 	alpha_lr: float = 3e-4
 	risk_alpha: float = 0.1
-	max_grad_norm: Optional[float] = None
+	max_grad_norm: Optional[float] = 1.0
 	target_entropy: Optional[float] = None
 	device: Optional[str] = None
 
@@ -81,7 +81,7 @@ class ReplayBufferConfig:
 class TrainingConfig:
 	"""Core training-loop settings currently used by `train_sac`."""
 
-	max_episodes: int = 20000
+	max_episodes: int = 40000
 	max_steps_per_episode: int = 2
 	batch_size: int = 16
 	warmup_steps: int = 0
