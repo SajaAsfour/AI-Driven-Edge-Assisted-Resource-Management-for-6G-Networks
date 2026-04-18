@@ -26,7 +26,7 @@ class SACAgent:
 
 	def __init__(
 		self,
-		state_dim: int = 28,
+		state_dim: int = 20,
 		action_dim: int = 1,
 		hidden_dims: tuple[int, ...] = (256, 256),
 		gamma: float = 0.99,
@@ -294,3 +294,4 @@ class SACAgent:
 
 		if "target_entropy" in checkpoint:
 			self.target_entropy = float(checkpoint["target_entropy"])
+			
