@@ -273,7 +273,7 @@ class NetworkModel:
         rbs_idx = rbs_values.index(rbs)
         
         mean_val = mean_matrix[traffic_key][rbs_idx]
-        std_val = std_matrix[traffic_key][rbs_idx]
+        std_val = std_matrix[traffic_key][rbs_idx] / 10.0
         
         return mean_val, std_val
     
