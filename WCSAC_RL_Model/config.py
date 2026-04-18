@@ -57,7 +57,7 @@ class EnvironmentConfig:
 class WCSACAgentConfig:
 	"""WCSAC model and optimizer hyperparameters for `WCSACAgent`."""
 
-	state_dim: int = 28
+	state_dim: int = 22
 	action_dim: int = 1
 	hidden_dims: tuple[int, ...] = (256, 256)
 	gamma: float = 0.99
@@ -76,7 +76,7 @@ class ReplayBufferConfig:
 	"""Off-policy replay storage settings for `ReplayBuffer`."""
 
 	capacity: int = 100_000
-	state_dim: int = 28
+	state_dim: int = 22
 	action_dim: int = 1
 
 
@@ -84,7 +84,7 @@ class ReplayBufferConfig:
 class TrainingConfig:
 	"""Core training-loop settings currently used by `train_wcsac`."""
 
-	max_episodes: int = 40000
+	max_episodes: int = 2000
 	max_steps_per_episode: int = 2
 	batch_size: int = 16
 	warmup_steps: int = 0
@@ -105,7 +105,7 @@ class CheckpointConfig:
 	"""Checkpointing settings for periodic and final saves."""
 
 	checkpoint_dir: PathLike = "WCSAC_RL_Model/checkpoints"
-	save_interval: int = 1000
+	save_interval: int = 500
 	file_prefix: str = "wcsac"
 
 

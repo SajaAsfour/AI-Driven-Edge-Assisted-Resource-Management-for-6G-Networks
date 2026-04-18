@@ -500,24 +500,12 @@ class NetworkWCSACEnv:
 			 last_beta_current,
 			 last_beta_cumulative,
 			 last_rb_norm,
-			 cdf_y[0], ..., cdf_y[k-1],
-			 traffic_dti_norm[0], ..., traffic_dti_norm[n-1]]
+			 cdf_y[0], ..., cdf_y[k-1]]
 
 		"""
 		progress = float(self._dti_cursor) / float(max(self.m, 1))
 
 		cdf_y = np.clip(self._last_cdf_y.astype(np.float32, copy=False), 0.0, 1.0)
-
-		max_traffic = float(max(self.config["traffic_elements"]))
-		if max_traffic <= 0:
-			traffic_state = np.zeros(self.n, dtype=np.float32)
-		else:
-			traffic_state = np.asarray(self._current_traffic_dti, dtype=np.float32).reshape(-1)
-			if traffic_state.size < self.n:
-				traffic_state = np.pad(traffic_state, (0, self.n - traffic_state.size), mode="constant")
-			elif traffic_state.size > self.n:
-				traffic_state = traffic_state[: self.n]
-			traffic_state = np.clip(traffic_state, 0.0, max_traffic) / max_traffic
 
 		state = np.concatenate(
 			[
@@ -531,7 +519,6 @@ class NetworkWCSACEnv:
 					dtype=np.float32,
 				),
 				cdf_y,
-				traffic_state,
 			]
 		)
 		if not np.all(np.isfinite(state)):
@@ -573,13 +560,6 @@ class NetworkWCSACEnv:
 		cdf_y = np.asarray(cdf_matrix[:, 1], dtype=np.float32)
 		cdf_y = np.clip(cdf_y, 0.0, 1.0)
 
-		max_traffic = float(max(self.config["traffic_elements"]))
-		if max_traffic <= 0:
-			traffic_state = np.zeros(self.n, dtype=np.float32)
-		else:
-			traffic_state = np.asarray(traffic_vec, dtype=np.float32) / max_traffic
-			traffic_state = np.clip(traffic_state, 0.0, 1.0)
-
 		state = np.concatenate(
 			[
 				np.array(
@@ -592,7 +572,6 @@ class NetworkWCSACEnv:
 					dtype=np.float32,
 				),
 				cdf_y.astype(np.float32, copy=False),
-				traffic_state.astype(np.float32, copy=False),
 			]
 		)
 		if not np.all(np.isfinite(state)):
@@ -613,7 +592,7 @@ class NetworkWCSACEnv:
 	@property
 	def observation_shape(self) -> Tuple[int]:
 		"""Return observation shape for network input layer construction."""
-		return (4 + self.k + self.n,)
+		return (4 + self.k,)
 
 	@property
 	def action_shape(self) -> Tuple[int]:
