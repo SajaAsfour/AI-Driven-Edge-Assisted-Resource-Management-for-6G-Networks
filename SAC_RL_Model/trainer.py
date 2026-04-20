@@ -244,6 +244,8 @@ def _run_evaluation(
 	max_steps: int,
 	episodes: int,
 	evaluation_logger: logging.Logger,
+	use_hardcoded_rb: bool = True,
+	hardcoded_rb_value: int = 4,
 ) -> tuple[float, list[Dict[str, Any]]]:
 	"""Run deterministic evaluation episodes with full per-step diagnostics logging."""
 	if hasattr(env, "set_logger"):
@@ -254,6 +256,10 @@ def _run_evaluation(
 	episode_rewards: list[float] = []
 	episode_dti_series: list[Dict[str, Any]] = []
 	evaluation_logger.info("Running deterministic SAC evaluation...")
+	if use_hardcoded_rb:
+		evaluation_logger.info(
+			f"[DEBUG MODE] Using hard-coded RB allocation: {int(hardcoded_rb_value)}"
+		)
 
 	for eval_episode_idx in range(1, episodes + 1):
 		evaluation_logger.info("=" * 50)
@@ -272,7 +278,18 @@ def _run_evaluation(
 		episode_utilization_values: list[float] = []
 		episode_rb_used_values: list[float] = []
 		for step_idx in range(max_steps):
-			action = agent.select_action(state, evaluate=True)
+			if use_hardcoded_rb:
+				rb_value = int(hardcoded_rb_value)
+
+				# Convert RB value to normalized action in [-1, 1]
+				action = np.array(
+					[
+						2.0 * (rb_value - env.rb_min) / (env.rb_max - env.rb_min) - 1.0
+					],
+					dtype=np.float32,
+				)
+			else:
+				action = agent.select_action(state, evaluate=True)
 			next_state, reward, done, info = env.step(action)
 			episode_reward += float(reward)
 			step_info = info if isinstance(info, dict) else {}
@@ -351,6 +368,8 @@ def train_sac(
 	default_replay_capacity = 100_000
 	default_rb_min = 1
 	default_evaluation_episodes = 5
+	default_use_hardcoded_rb = False
+	default_hardcoded_rb_value = 4
 	default_checkpoint_dir: Union[str, Path] = "SAC_RL_Model/checkpoints"
 	default_seed: Optional[int] = 42
 	default_verbose = True
@@ -391,6 +410,11 @@ def train_sac(
 	)
 	evaluation_episodes = _from_config(config.evaluation.episodes, default_evaluation_episodes)
 	evaluation_max_steps = _from_config(config.evaluation.max_steps_per_episode, max_steps_per_episode)
+	use_hardcoded_rb = _from_config(config.evaluation.use_hardcoded_rb, default_use_hardcoded_rb)
+	hardcoded_rb_value = _from_config(
+		config.evaluation.hardcoded_rb_value,
+		default_hardcoded_rb_value,
+	)
 	checkpoint_dir = _from_config(config.checkpoint.checkpoint_dir, default_checkpoint_dir)
 	seed = _from_config(config.environment.seed, default_seed)
 	verbose = _from_config(config.training.verbose, default_verbose)
@@ -645,6 +669,8 @@ def train_sac(
 				max_steps=evaluation_max_steps,
 				episodes=evaluation_episodes,
 				evaluation_logger=evaluation_logger,
+				use_hardcoded_rb=bool(use_hardcoded_rb),
+				hardcoded_rb_value=int(hardcoded_rb_value),
 			)
 			
 			latest_evaluation_episode_dti_series = eval_episode_series
