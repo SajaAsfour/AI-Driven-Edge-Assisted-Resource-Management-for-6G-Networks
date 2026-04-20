@@ -562,6 +562,36 @@ def choose_evaluation_mode(train_mode: str) -> str:
         print("Invalid choice. Please enter 1 or 2.")
 
 
+def choose_rb_allocation_mode_for_evaluation() -> bool:
+    print("\nSelect RB allocation mode:")
+    print("  1. Use AI policy (default)")
+    print("  2. Use hard-coded RB value (debug mode)")
+    while True:
+        choice = input("Enter RB allocation mode (1-2): ").strip()
+        if choice == "1":
+            return False
+        if choice == "2":
+            return True
+        print("Invalid choice. Please enter 1 or 2.")
+
+
+def choose_hardcoded_rb_value(env: Any) -> int:
+    raw_value = input("Enter fixed RB value to use for all DTIs: ").strip()
+    try:
+        rb_value = int(raw_value)
+    except ValueError as e:
+        raise ValueError(f"Invalid RB value '{raw_value}': must be an integer") from e
+
+    rb_min = getattr(env, "rb_min", None)
+    rb_max = getattr(env, "rb_max", None)
+    if rb_min is None or rb_max is None:
+        raise ValueError("Environment RB bounds are not configured (rb_min/rb_max)")
+    if rb_value < rb_min or rb_value > rb_max:
+        raise ValueError(f"Invalid RB value {rb_value}: must be within [{rb_min}, {rb_max}]")
+
+    return rb_value
+
+
 def _checkpoint_sort_key(path: Path) -> Tuple[int, int, str]:
     name = path.name
     match = re.search(r"_episode_(\d+)\.pt$", name)
@@ -918,10 +948,6 @@ def run_sac_evaluation_mode() -> None:
 
         try:
             checkpoint_dir_path = ckpt_path.parent
-            evaluation_log_path = checkpoint_dir_path / "evaluation.log"
-            eval_file_handler = logging.FileHandler(evaluation_log_path, mode='w', encoding='utf-8')
-            eval_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-            evaluation_logger.addHandler(eval_file_handler)
 
             env_kwargs = {
                 "service": selected_service,
@@ -938,6 +964,37 @@ def run_sac_evaluation_mode() -> None:
                 env.set_logger(evaluation_logger)
             if hasattr(env, "set_logging_context"):
                 env.set_logging_context("evaluation")
+
+            use_hardcoded_rb = choose_rb_allocation_mode_for_evaluation()
+            hardcoded_rb_value: Optional[int] = None
+            log_path_for_run: Path
+            if use_hardcoded_rb:
+                hardcoded_rb_value = choose_hardcoded_rb_value(env)
+                log_path_for_run = (
+                    checkpoint_dir_path
+                    / f"evaluation_hardcoded_rb_{int(hardcoded_rb_value)}.log"
+                )
+            else:
+                log_path_for_run = checkpoint_dir_path / "evaluation.log"
+
+            eval_file_handler = logging.FileHandler(
+                log_path_for_run,
+                mode='w',
+                encoding='utf-8',
+            )
+            eval_file_handler.setFormatter(
+                logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            )
+            evaluation_logger.addHandler(eval_file_handler)
+
+            if use_hardcoded_rb:
+                evaluation_logger.info(
+                    f"[DEBUG MODE] Writing hard-coded RB evaluation output to: {log_path_for_run}"
+                )
+                print(
+                    f"Hard-coded RB output log: {log_path_for_run}"
+                )
+
             state_dim = int(np.prod(env.observation_shape))
             action_dim = int(np.prod(env.action_shape))
 
@@ -962,7 +1019,21 @@ def run_sac_evaluation_mode() -> None:
                 ep_beta_values: List[float] = []
                 ep_reward_values: List[float] = []
                 for step_idx in range(eval_steps):
-                    action = agent.select_action(state, evaluate=True)
+                    if use_hardcoded_rb:
+                        rb_value = int(hardcoded_rb_value)
+
+                        # Convert RB value to normalized action in [-1, 1]
+                        action = np.array([
+                            2.0 * (rb_value - env.rb_min)
+                            / (env.rb_max - env.rb_min)
+                            - 1.0
+                        ], dtype=np.float32)
+
+                        evaluation_logger.info(
+                            f"[DEBUG MODE] Using hard-coded RB allocation: {rb_value}"
+                        )
+                    else:
+                        action = agent.select_action(state, evaluate=True)
                     next_state, reward, done, info = env.step(action)
                     ep_reward += float(reward)
                     ep_dti_indices.append(_safe_dti_index_for_plot(info.get("dti_index"), fallback=step_idx + 1))

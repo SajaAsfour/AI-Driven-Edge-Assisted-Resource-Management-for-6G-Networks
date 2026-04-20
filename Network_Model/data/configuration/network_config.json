@@ -3,7 +3,7 @@
   "m": 8,
   "k": 16,
   "c": 8,
-  "lambda_reward": 0.1,
+  "lambda_reward": 0.05,
   "b_threshold": 0.5,
   "traffic_elements": [
     5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80

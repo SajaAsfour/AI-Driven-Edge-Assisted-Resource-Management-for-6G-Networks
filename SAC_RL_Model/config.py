@@ -94,8 +94,6 @@ class EvaluationConfig:
 	deterministic: bool = True
 	episodes: int = 5
 	max_steps_per_episode: int = 2
-	use_hardcoded_rb: bool = True
-	hardcoded_rb_value: int = 4
 
 @dataclass(slots=True)
 class CheckpointConfig:
