@@ -94,6 +94,7 @@ class EvaluationConfig:
 	deterministic: bool = True
 	episodes: int = 5
 	max_steps_per_episode: int = 2
+	debug_print_q_values: bool = True
 
 @dataclass(slots=True)
 class CheckpointConfig:

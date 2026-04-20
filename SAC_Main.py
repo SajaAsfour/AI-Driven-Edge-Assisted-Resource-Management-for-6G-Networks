@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 
 BASE_DIR = Path(__file__).parent.resolve()
 NETWORK_MODEL_DIR = BASE_DIR / "Network_Model"
@@ -39,6 +40,60 @@ def _safe_dti_index_for_plot(value: Any, fallback: int) -> int:
     if idx <= 0:
         idx = int(fallback)
     return idx
+
+
+def _rb_to_action_scalar(env: Any, rb_value: int) -> float:
+    """Map integer RB to action scalar using environment action bounds."""
+    span = float(max(int(env.rb_max) - int(env.rb_min), 1))
+    ratio = (float(rb_value) - float(env.rb_min)) / span
+    a_norm = (2.0 * ratio) - 1.0
+    action_scalar = float(env.action_low) + ((a_norm + 1.0) * 0.5) * (
+        float(env.action_high) - float(env.action_low)
+    )
+    return float(action_scalar)
+
+
+def _log_q_value_inspection_for_state(
+    evaluation_logger: logging.Logger,
+    env: Any,
+    agent: Any,
+    state: Any,
+    policy_action: np.ndarray,
+) -> None:
+    """Log Q1/Q2/Qmin for all RB candidates at the current evaluation state."""
+    state_arr = np.asarray(state, dtype=np.float32).reshape(-1)
+    if state_arr.size <= 0:
+        evaluation_logger.info("Q-value inspection skipped: empty state")
+        return
+
+    state_tensor = torch.as_tensor(
+        state_arr,
+        dtype=torch.float32,
+        device=agent.device,
+    ).unsqueeze(0)
+
+    evaluation_logger.info("## Q-value inspection for current state")
+    with torch.no_grad():
+        for rb in range(int(env.rb_min), int(env.rb_max) + 1):
+            action_scalar = _rb_to_action_scalar(env, rb)
+            action_vec = np.zeros(int(agent.action_dim), dtype=np.float32)
+            action_vec[0] = np.float32(action_scalar)
+            action_tensor = torch.as_tensor(
+                action_vec,
+                dtype=torch.float32,
+                device=agent.device,
+            ).unsqueeze(0)
+
+            q1 = float(agent.critic1(state_tensor, action_tensor).item())
+            q2 = float(agent.critic2(state_tensor, action_tensor).item())
+            q_min = float(min(q1, q2))
+            evaluation_logger.info(
+                f"RB = {rb} | Q1 = {q1:.6f} | Q2 = {q2:.6f} | Q_min = {q_min:.6f}"
+            )
+
+    selected_rb = int(env._action_to_rb(policy_action))
+    evaluation_logger.info(f"Selected RB by policy: {selected_rb}")
+    evaluation_logger.info("------------------------------------------")
 
 
 def save_episode_dti_plots(episode_data: List[Dict[str, Any]], output_dir: Path) -> int:
@@ -891,6 +946,8 @@ def run_sac_evaluation_mode() -> None:
 
         env_cfg_raw = loaded_config.get("environment", {}) if isinstance(loaded_config, dict) else {}
         env_cfg = env_cfg_raw if isinstance(env_cfg_raw, dict) else {}
+        eval_cfg_raw = loaded_config.get("evaluation", {}) if isinstance(loaded_config, dict) else {}
+        eval_cfg = eval_cfg_raw if isinstance(eval_cfg_raw, dict) else {}
 
         inferred_service = _infer_service_from_checkpoint_name(ckpt_path) or selected_service_for_folder
 
@@ -933,6 +990,9 @@ def run_sac_evaluation_mode() -> None:
 
         eval_episodes = int(cfg.evaluation.episodes)
         eval_steps = int(cfg.evaluation.max_steps_per_episode)
+        debug_print_q_values = bool(getattr(cfg.evaluation, "debug_print_q_values", False))
+        if "debug_print_q_values" in eval_cfg:
+            debug_print_q_values = bool(eval_cfg.get("debug_print_q_values"))
         if eval_episodes <= 0:
             eval_episodes = 1
         if eval_steps <= 0:
@@ -1019,7 +1079,10 @@ def run_sac_evaluation_mode() -> None:
                 ep_beta_values: List[float] = []
                 ep_reward_values: List[float] = []
                 for step_idx in range(eval_steps):
+                    policy_action_for_debug: Optional[np.ndarray] = None
                     if use_hardcoded_rb:
+                        if debug_print_q_values:
+                            policy_action_for_debug = agent.select_action(state, evaluate=True)
                         rb_value = int(hardcoded_rb_value)
 
                         # Convert RB value to normalized action in [-1, 1]
@@ -1034,6 +1097,17 @@ def run_sac_evaluation_mode() -> None:
                         )
                     else:
                         action = agent.select_action(state, evaluate=True)
+                        policy_action_for_debug = action
+
+                    if debug_print_q_values:
+                        _log_q_value_inspection_for_state(
+                            evaluation_logger=evaluation_logger,
+                            env=env,
+                            agent=agent,
+                            state=state,
+                            policy_action=policy_action_for_debug,
+                        )
+
                     next_state, reward, done, info = env.step(action)
                     ep_reward += float(reward)
                     ep_dti_indices.append(_safe_dti_index_for_plot(info.get("dti_index"), fallback=step_idx + 1))
