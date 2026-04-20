@@ -79,7 +79,7 @@ class ReplayBufferConfig:
 class TrainingConfig:
 	"""Core training-loop settings currently used by `train_sac`."""
 
-	max_episodes: int = 2000
+	max_episodes: int = 40000
 	max_steps_per_episode: int = 2
 	batch_size: int = 16
 	warmup_steps: int = 0
@@ -102,7 +102,7 @@ class CheckpointConfig:
 	"""Checkpointing settings for periodic and final saves."""
 
 	checkpoint_dir: PathLike = "SAC_RL_Model/checkpoints"
-	save_interval: int = 500
+	save_interval: int = 1000
 	file_prefix: str = "sac"
 
 
