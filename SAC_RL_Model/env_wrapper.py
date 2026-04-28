@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 import sys
@@ -33,7 +34,7 @@ class NetworkSACEnv:
 	- single continuous SAC action mapped to an integer RB allocation
 
 	Notes on integration with current simulation:
-	- Traffic demand per DTI is profile-driven (fixed profile or per-step random profile).
+		- Traffic demand per DTI is profile-driven (fixed profile or episode random profile).
 	- The wrapper does NOT re-implement network logic.
 	  It calls `NetworkModel.process_dti(...)` and uses the returned reward.
 	- The action controls RB allocation for the selected service in current DTI,
@@ -113,9 +114,12 @@ class NetworkSACEnv:
 			raise ValueError("UE profiles cannot be empty")
 
 		self._profile_names: list[str] = list(self.ue_profiles.keys())
+		self._traffic_rng = random.Random(seed)
 		self._traffic_by_dti: Optional[list[list[int]]] = None
 		self._current_profile_name: Optional[str] = None
 		self._current_profile_values: Optional[list[int]] = None
+		self._episode_profile_name: Optional[str] = None
+		self._episode_profile_values: Optional[list[int]] = None
 
 		self.action_low = float(action_low)
 		self.action_high = float(action_high)
@@ -160,13 +164,14 @@ class NetworkSACEnv:
 				profile_values=self._current_profile_values,
 				m=self.m,
 				n=self.n,
+				rng=self._traffic_rng,
 			)
 			if not self.silent:
 				print(f"Using fixed UE profile: {profile_name} -> {self._current_profile_values}")
 		else:
 			self._traffic_by_dti = None
 			if not self.silent:
-				print("Using dynamic random UE profiles (changes every step)")
+				print("Using random UE profile selected once per episode")
 
 		self._dti_cursor: int = 0
 		self._done: bool = False
@@ -195,9 +200,27 @@ class NetworkSACEnv:
 		self._last_reward = 0.0
 		self._last_rb_norm = 0.0
 		self._last_cdf_y = np.zeros(self.k, dtype=np.float32)
-		self._current_profile_name = self._current_profile_name if self.traffic_profile_mode == "fixed" else None
-		self._current_profile_values = self._current_profile_values if self.traffic_profile_mode == "fixed" else None
+		if self.traffic_profile_mode == "random":
+			self._select_episode_profile()
+		else:
+			self._episode_profile_name = None
+			self._episode_profile_values = None
 		return self.get_state()
+
+	def _select_episode_profile(self) -> None:
+		"""Select and cache one random profile for the current episode."""
+		profile_name = str(self._rng.choice(self._profile_names))
+		profile_values = [int(v) for v in self.ue_profiles[profile_name]]
+		self._episode_profile_name = profile_name
+		self._episode_profile_values = profile_values
+		self._current_profile_name = profile_name
+		self._current_profile_values = profile_values
+		if not self.silent:
+			message = f"Episode profile selected: {profile_name} -> {profile_values}"
+			if self._logger is not None:
+				self._logger.info(message)
+			else:
+				print(message)
 
 	def set_logging_context(self, context: str) -> None:
 		"""Set step diagnostics logging context (training or evaluation)."""
@@ -363,9 +386,15 @@ class NetworkSACEnv:
 			if self._current_profile_values is None or self._current_profile_name is None:
 				raise ValueError("Fixed profile metadata is missing")
 		else:
-			profile_name = str(self._rng.choice(self._profile_names))
-			profile_values = [int(v) for v in self.ue_profiles[profile_name]]
-			traffic_dti = build_dti_from_profile(profile_values=profile_values, n=self.n)
+			if self._episode_profile_name is None or self._episode_profile_values is None:
+				self._select_episode_profile()
+			profile_name = self._episode_profile_name
+			profile_values = self._episode_profile_values
+			traffic_dti = build_dti_from_profile(
+				profile_values=profile_values,
+				n=self.n,
+				rng=self._traffic_rng,
+			)
 			self._current_profile_name = profile_name
 			self._current_profile_values = profile_values
 			if self.log_random_profile_each_step:

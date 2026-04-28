@@ -12,10 +12,10 @@ def get_default_sample_input() -> Dict[str, Any]:
 	return {
 		"traffic_users_per_tti": {
 			"voip": [
-				[5, 5, 5, 5, 5, 5, 5, 5],
-				[40, 40, 40, 40, 45, 45, 45, 45],
-				[75,80,80,75,80,80,75,75],
-			],
+				[5, 10, 5, 10, 5, 10, 5, 5],
+				[35, 35, 40, 35, 35, 35, 35, 35],
+				[15, 15, 20, 15, 15, 15, 15, 15],		
+						],
 			"cbr": [
 				[50, 50, 55, 50, 50, 55, 55, 55],
 				[5, 5, 5, 5, 5, 5, 5, 5],
@@ -79,8 +79,8 @@ class ReplayBufferConfig:
 class TrainingConfig:
 	"""Core training-loop settings currently used by `train_sac`."""
 
-	max_episodes: int = 40000
-	max_steps_per_episode: int = 2
+	max_episodes: int = 2000
+	max_steps_per_episode: int = 5
 	batch_size: int = 16
 	warmup_steps: int = 0
 	verbose: bool = True
