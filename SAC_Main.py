@@ -1316,6 +1316,79 @@ def run_sac_custom_inference_mode() -> None:
     output_path.write_text(json.dumps(_json_safe(output), indent=2), encoding="utf-8")
     print("\nSaved custom inference output to:")
     print(output_path)
+    # Generate and save sample-input plots (only for custom/sample input simulation mode)
+    try:
+        traffic_users = sample_input.get("traffic_users_per_tti", {})
+        services = ["voip", "cbr", "streaming"]
+        default_profiles = list(get_default_profiles().values())
+
+        def infer_profile_number_from_dti(dti_values: Any) -> float:
+            if not isinstance(dti_values, (list, tuple)) or not dti_values:
+                return float("nan")
+
+            try:
+                dti_set = {int(v) for v in dti_values}
+            except (TypeError, ValueError):
+                return float("nan")
+
+            for profile_idx, profile_values in enumerate(default_profiles, start=1):
+                if dti_set.issubset({int(v) for v in profile_values}):
+                    return float(profile_idx)
+
+            dti_mean = float(np.mean([float(v) for v in dti_values]))
+            profile_means = [float(np.mean([float(v) for v in profile_values])) for profile_values in default_profiles]
+            closest_idx = int(np.argmin([abs(dti_mean - pm) for pm in profile_means])) + 1
+            return float(closest_idx)
+
+        allocation = output.get("predicted_resource_blocks_per_dti", {})
+        saved_plot_paths: List[Path] = []
+
+        for svc in services:
+            svc_data = traffic_users.get(svc, [])
+            rb_list = allocation.get(svc, [])
+            if not svc_data or not rb_list:
+                continue
+
+            plot_dir = base_checkpoint_dir / svc / "sample_input_plots"
+            plot_dir.mkdir(parents=True, exist_ok=True)
+
+            fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(16, 6))
+
+            x_vals = list(range(1, min(len(svc_data), len(rb_list)) + 1))
+            profile_numbers = [infer_profile_number_from_dti(dti) for dti in svc_data[: len(x_vals)]]
+            rb_values = [int(x) for x in rb_list[: len(x_vals)]]
+
+            ax_left.plot(x_vals, profile_numbers, marker="o", linewidth=1.5, label=svc.capitalize())
+            ax_left.set_title(f"Traffic Profile Number per DTI - {svc.capitalize()}")
+            ax_left.set_xlabel("Number of DTI")
+            ax_left.set_ylabel("Profile Number")
+            ax_left.set_yticks([1, 2, 3, 4, 5, 6, 7, 8])
+            ax_left.set_ylim(1, 8)
+            ax_left.set_xticks(np.arange(1, len(x_vals) + 1, 5))
+            ax_left.set_xlim(left=1)
+            ax_left.grid(True)
+            ax_left.legend()
+
+            ax_right.plot(x_vals, rb_values, marker="o", linewidth=1.5, label=svc.capitalize())
+            ax_right.set_title(f"Agent RB Allocation per DTI - {svc.capitalize()}")
+            ax_right.set_xlabel("Number of DTI")
+            ax_right.set_ylabel("Allocated RBs")
+            ax_right.set_xticks(np.arange(1, len(x_vals) + 1, 5))
+            ax_right.set_xlim(left=1)
+            ax_right.grid(True)
+            ax_right.legend()
+
+            fig.tight_layout()
+            service_file = plot_dir / f"{svc}_combined_traffic_rb_plots.png"
+            fig.savefig(service_file, dpi=150)
+            plt.close(fig)
+            saved_plot_paths.append(service_file)
+
+        print("\nSaved sample-input plots to:")
+        for plot_path in saved_plot_paths:
+            print(plot_path)
+    except Exception as e:
+        print(f"WARNING: Failed to generate sample-input plots: {e}")
 
 
 
