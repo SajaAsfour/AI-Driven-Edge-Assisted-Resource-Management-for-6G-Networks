@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 import sys
@@ -33,7 +34,7 @@ class NetworkWCSACEnv:
 	- single continuous WCSAC action mapped to an integer RB allocation
 
 	Notes on integration with current simulation:
-	- Traffic demand per DTI is profile-driven (fixed profile or per-step random profile).
+	- Traffic demand per DTI is profile-driven (fixed profile or per-episode random profile).
 	- The wrapper does NOT re-implement network logic.
 	  It calls `NetworkModel.process_dti(...)` and uses the returned reward.
 	- The action controls RB allocation for the selected service in current DTI,
@@ -53,6 +54,21 @@ class NetworkWCSACEnv:
 		"video_stream": "streaming",
 		"video-stream": "streaming",
 	}
+
+	def _select_episode_profile(self) -> None:
+		"""Select and cache one random profile for the current episode."""
+		profile_name = str(self._rng.choice(self._profile_names))
+		profile_values = [int(v) for v in self.ue_profiles[profile_name]]
+		self._episode_profile_name = profile_name
+		self._episode_profile_values = profile_values
+		self._current_profile_name = profile_name
+		self._current_profile_values = profile_values
+		if not self.silent:
+			message = f"Episode profile selected: {profile_name} -> {profile_values}"
+			if self._logger is not None:
+				self._logger.info(message)
+			else:
+				print(message)
 
 	def __init__(
 		self,
@@ -86,6 +102,7 @@ class NetworkWCSACEnv:
 		"""
 		if seed is not None:
 			np.random.seed(seed)
+			random.seed(seed)
 		self._rng = np.random.default_rng(seed)
 
 		self.service: str = self._normalize_service(service)
@@ -166,7 +183,7 @@ class NetworkWCSACEnv:
 		else:
 			self._traffic_by_dti = None
 			if not self.silent:
-				print("Using dynamic random UE profiles (changes every step)")
+				print("Using random UE profile selected once per episode")
 
 		self._dti_cursor: int = 0
 		self._done: bool = False
@@ -175,6 +192,8 @@ class NetworkWCSACEnv:
 		self._last_reward: float = 0.0
 		self._last_rb_norm: float = 0.0
 		self._last_cdf_y: np.ndarray = np.zeros(self.k, dtype=np.float32)
+		self._episode_profile_name: Optional[str] = None
+		self._episode_profile_values: Optional[list[int]] = None
 		self._current_traffic_dti: np.ndarray | list[int] = [0] * self.n
 		self._is_current_dti_prepared: bool = False
 		self.logging_context: str = "training"
@@ -203,9 +222,10 @@ class NetworkWCSACEnv:
 			profile_name, profile_values = get_profile_or_raise(self.ue_profiles, self.fixed_profile_name)
 			self._current_profile_name = profile_name
 			self._current_profile_values = list(profile_values)
+			self._episode_profile_name = None
+			self._episode_profile_values = None
 		else:
-			self._current_profile_name = None
-			self._current_profile_values = None
+			self._select_episode_profile()
 		return self.prepare_current_dti()
 
 	def set_logging_context(self, context: str) -> None:
@@ -367,19 +387,21 @@ class NetworkWCSACEnv:
 				self._current_profile_name = profile_name
 				self._current_profile_values = list(profile_values)
 		else:
-			profile_name = str(self._rng.choice(self._profile_names))
-			profile_values = [int(v) for v in self.ue_profiles[profile_name]]
+			if self._episode_profile_name is None or self._episode_profile_values is None:
+				self._select_episode_profile()
+			profile_name = self._episode_profile_name
+			profile_values = self._episode_profile_values
 			traffic_dti = build_dti_from_profile(profile_values=profile_values, n=self.n)
 			self._current_profile_name = profile_name
 			self._current_profile_values = profile_values
 			if self.log_random_profile_each_step:
 				if self._logger is not None:
 					self._logger.info(
-						f"Step {self._dti_cursor + 1} -> {profile_name} -> {profile_values}"
+						f"Step {self._dti_cursor + 1} -> {profile_name} -> {list(profile_values)}"
 					)
 				else:
 					print(
-						f"Step {self._dti_cursor + 1} -> {profile_name} -> {profile_values}"
+						f"Step {self._dti_cursor + 1} -> {profile_name} -> {list(profile_values)}"
 					)
 
 		if self._current_profile_values is None or self._current_profile_name is None:
