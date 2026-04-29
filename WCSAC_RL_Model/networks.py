@@ -276,3 +276,56 @@ class Critic(nn.Module):
 		if not torch.isfinite(q_value).all():
 			raise RuntimeError("Non-finite Q-value encountered in critic forward pass")
 		return q_value
+
+
+class CostCritic(nn.Module):
+	"""
+	Gaussian cost critic predicting mean and log-variance of cost distribution.
+
+	Input: concatenated `(state, action)`.
+	Output: two scalars per sample: `mean` and `log_var` (both shape [B, 1]).
+	"""
+
+	def __init__(
+		self,
+		state_dim: int,
+		action_dim: int,
+		hidden_dims: Sequence[int] = (256, 256),
+		activation: ActivationLike = "relu",
+	) -> None:
+		super().__init__()
+
+		self.state_dim = state_dim
+		self.action_dim = action_dim
+
+		self.net = build_mlp(
+			input_dim=state_dim + action_dim,
+			output_dim=2,  # mean, log_var
+			hidden_dims=hidden_dims,
+			activation=activation,
+		)
+
+	def _validate_inputs(self, state: torch.Tensor, action: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+		if state.ndim == 1:
+			state = state.unsqueeze(0)
+		if action.ndim == 1:
+			action = action.unsqueeze(0)
+		if state.ndim != 2 or action.ndim != 2:
+			raise ValueError("state and action must be rank-2")
+		if state.shape[-1] != self.state_dim:
+			raise ValueError(f"Expected state dim {self.state_dim}")
+		if action.shape[-1] != self.action_dim:
+			raise ValueError(f"Expected action dim {self.action_dim}")
+		return state, action
+
+	def forward(self, state: torch.Tensor, action: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+		state, action = self._validate_inputs(state, action)
+		x = torch.cat([state, action], dim=-1)
+		out = self.net(x)
+		if out.ndim != 2 or out.shape[-1] != 2:
+			raise RuntimeError(f"CostCritic output must have shape [B, 2], got {tuple(out.shape)}")
+		mean = out[:, 0:1]
+		log_var = out[:, 1:2]
+		if not torch.isfinite(mean).all() or not torch.isfinite(log_var).all():
+			raise RuntimeError("Non-finite values in CostCritic output")
+		return mean, log_var

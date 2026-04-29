@@ -481,6 +481,15 @@ def train_wcsac(
 		agent_kwargs["target_entropy"] = config.agent.target_entropy
 	if config.agent.device is not None:
 		agent_kwargs["device"] = config.agent.device
+	# Constraint-related agent kwargs
+	if getattr(config.agent, "beta_threshold", None) is not None:
+		agent_kwargs["beta_threshold"] = config.agent.beta_threshold
+	if getattr(config.agent, "lagrange_lr", None) is not None:
+		agent_kwargs["lagrange_lr"] = config.agent.lagrange_lr
+	if getattr(config.agent, "lambda_init", None) is not None:
+		agent_kwargs["lambda_init"] = config.agent.lambda_init
+	if getattr(config.agent, "cost_mode", None) is not None:
+		agent_kwargs["cost_mode"] = config.agent.cost_mode
 
 	agent = WCSACAgent(**agent_kwargs)
 	replay_buffer = ReplayBuffer(
@@ -579,7 +588,16 @@ def train_wcsac(
 			episode_reward_values.append(_safe_plot_float(reward))
 			episode_utilization_values.append(_safe_utilization(info.get("utilization")))
 			episode_rb_used_values.append(_safe_plot_float(info.get("rb_alloc")))
-			replay_buffer.add(state, action, reward, next_state, done)
+			# Compute cost signal from environment beta (option A or B)
+			beta_current = _safe_plot_float(info.get("beta_current"))
+			if beta_current is None:
+				cost_val = 0.0
+			else:
+				if getattr(config.agent, "cost_mode", "beta") == "exceedance":
+					cost_val = max(0.0, float(beta_current) - float(getattr(config.agent, "beta_threshold", 0.1)))
+				else:
+					cost_val = float(beta_current)
+			replay_buffer.add(state, action, reward, cost_val, next_state, done)
 			episode_reward += float(reward)
 			total_steps += 1
 
@@ -612,6 +630,14 @@ def train_wcsac(
 				episode_risk_alpha_values.append(risk_alpha_value)
 				episode_alpha_losses.append(alpha_loss)
 				episode_entropy_values.append(entropy_value)
+
+				# record cost-related metrics if available
+				if update_info is not None:
+					history.setdefault("cvar_cost", []).append(float(update_info.get("cvar_cost", float("nan"))))
+					history.setdefault("lambda_cost", []).append(float(update_info.get("lambda_cost", float("nan"))))
+					history.setdefault("cost_critic_loss", []).append(float(update_info.get("cost_critic_loss", float("nan"))))
+					history.setdefault("cost_mean", []).append(float(update_info.get("cost_mean", float("nan"))))
+					history.setdefault("cost_std", []).append(float(update_info.get("cost_std", float("nan"))))
 
 			state = next_state
 			if done:

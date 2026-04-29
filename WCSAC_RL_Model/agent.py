@@ -7,11 +7,12 @@ import numpy as np
 import torch
 from torch import nn
 from torch.optim import Adam
+from torch.distributions import Normal
 
 try:
-	from .networks import Critic, GaussianActor
+	from .networks import Critic, GaussianActor, CostCritic
 except ImportError:
-	from networks import Critic, GaussianActor
+	from networks import Critic, GaussianActor, CostCritic
 
 
 def cvar_weights(values: torch.Tensor, risk_alpha: float, eps: float = 1e-8) -> torch.Tensor:
@@ -71,6 +72,11 @@ class WCSACAgent:
 		max_grad_norm: Optional[float] = None,
 		target_entropy: Optional[float] = None,
 		device: Optional[Union[str, torch.device]] = None,
+		# Constraint params
+		beta_threshold: float = 0.1,
+		lagrange_lr: float = 1e-3,
+		lambda_init: float = 1.0,
+		cost_mode: str = "beta",
 	) -> None:
 		if not isinstance(state_dim, int) or state_dim <= 0:
 			raise ValueError(f"state_dim must be positive int, got {state_dim!r}")
@@ -91,6 +97,10 @@ class WCSACAgent:
 		self.tau = float(tau)
 		self.risk_alpha = float(risk_alpha)
 		self.max_grad_norm = float(max_grad_norm) if max_grad_norm is not None else None
+		self.beta_threshold = float(beta_threshold)
+		self.lagrange_lr = float(lagrange_lr)
+		self.lambda_cost = float(lambda_init)
+		self.cost_mode = str(cost_mode)
 
 		if device is None:
 			device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -136,6 +146,22 @@ class WCSACAgent:
 		self.critic1_optimizer = Adam(self.critic1.parameters(), lr=critic_lr)
 		self.critic2_optimizer = Adam(self.critic2.parameters(), lr=critic_lr)
 
+		# Cost / risk critic (Gaussian: predict mean and log-variance)
+		self.cost_critic = CostCritic(
+			state_dim=state_dim,
+			action_dim=action_dim,
+			hidden_dims=hidden_dims,
+		).to(self.device)
+		self.target_cost_critic = CostCritic(
+			state_dim=state_dim,
+			action_dim=action_dim,
+			hidden_dims=hidden_dims,
+		).to(self.device)
+		self.target_cost_critic.load_state_dict(self.cost_critic.state_dict())
+		for p in self.target_cost_critic.parameters():
+			p.requires_grad = False
+		self.cost_critic_optimizer = Adam(self.cost_critic.parameters(), lr=critic_lr)
+
 		# log_alpha is optimized directly to keep alpha positive via exp(log_alpha).
 		self.log_alpha = nn.Parameter(torch.tensor(0.0, device=self.device))
 		self.alpha_optimizer = Adam([self.log_alpha], lr=alpha_lr)
@@ -143,6 +169,9 @@ class WCSACAgent:
 		self.target_entropy = float(target_entropy) if target_entropy is not None else float(-action_dim)
 
 		self.alpha = self.log_alpha.exp().detach()
+
+		# lambda_cost already initialized from lambda_init; keep as float
+		self.lambda_cost = float(self.lambda_cost)
 
 	def select_action(self, state: Union[np.ndarray, list, tuple], evaluate: bool = False) -> np.ndarray:
 		"""Select action from current policy.
@@ -192,6 +221,7 @@ class WCSACAgent:
 		states = torch.as_tensor(batch["states"], dtype=torch.float32, device=self.device)
 		actions = torch.as_tensor(batch["actions"], dtype=torch.float32, device=self.device)
 		rewards = torch.as_tensor(batch["rewards"], dtype=torch.float32, device=self.device)
+		costs = torch.as_tensor(batch.get("costs", np.zeros((len(states), 1))), dtype=torch.float32, device=self.device)
 		next_states = torch.as_tensor(batch["next_states"], dtype=torch.float32, device=self.device)
 		dones = torch.as_tensor(batch["dones"], dtype=torch.float32, device=self.device)
 
@@ -227,6 +257,19 @@ class WCSACAgent:
 			torch.nn.utils.clip_grad_norm_(self.critic2.parameters(), self.max_grad_norm)
 		self.critic2_optimizer.step()
 
+		# ------------------ Cost critic update ------------------
+		# Fit Gaussian cost predictor to observed immediate costs (behavior actions)
+		pred_mean, pred_log_var = self.cost_critic(states, actions)
+		pred_var = torch.exp(pred_log_var).clamp_min(1e-6)
+		nll = 0.5 * (((costs - pred_mean).pow(2) / pred_var) + pred_log_var)
+		cost_critic_loss = nll.mean()
+
+		self.cost_critic_optimizer.zero_grad(set_to_none=True)
+		cost_critic_loss.backward()
+		if self.max_grad_norm is not None:
+			torch.nn.utils.clip_grad_norm_(self.cost_critic.parameters(), self.max_grad_norm)
+		self.cost_critic_optimizer.step()
+
 		new_actions, log_prob, _ = self.actor(
 			states,
 			deterministic=False,
@@ -238,7 +281,22 @@ class WCSACAgent:
 
 		alpha_detached = self.log_alpha.exp().detach()
 		actor_weights = cvar_weights(min_q_new.detach(), self.risk_alpha)
+
+		# Compute CVaR of cost under current policy (analytic for Gaussian)
+		cost_mean_pi, cost_log_var_pi = self.cost_critic(states, new_actions)
+		cost_std_pi = torch.exp(0.5 * cost_log_var_pi)
+		# standard normal stats
+		std_normal = Normal(torch.tensor(0.0, device=self.device), torch.tensor(1.0, device=self.device))
+		inv_phi = std_normal.icdf(torch.tensor(self.risk_alpha, device=self.device))
+		pdf_at_inv = torch.exp(std_normal.log_prob(inv_phi))
+		kappa = (pdf_at_inv / (1.0 - float(self.risk_alpha))).clamp_min(0.0)
+		cvar_per_sample = cost_mean_pi + kappa * cost_std_pi
+		cvar_cost = cvar_per_sample.mean()
+
 		actor_loss = -(actor_weights * (min_q_new - alpha_detached * log_prob)).mean()
+		# Lagrangian penalty: push down CVaR(cost) towards threshold
+		constraint_term = float(self.lambda_cost) * (cvar_cost - float(self.beta_threshold))
+		actor_loss = actor_loss + constraint_term
 
 		self.actor_optimizer.zero_grad(set_to_none=True)
 		actor_loss.backward()
@@ -258,6 +316,15 @@ class WCSACAgent:
 
 		self.soft_update(self.target_critic1, self.critic1, self.tau)
 		self.soft_update(self.target_critic2, self.critic2, self.tau)
+		# soft-update cost critic target
+		self.soft_update(self.target_cost_critic, self.cost_critic, self.tau)
+
+		# ------------------ Update Lagrange multiplier ------------------
+		# Simple gradient-free dual ascent: lambda <- max(0, lambda + lr * (CVaR - threshold))
+		with torch.no_grad():
+			cvar_val = float(cvar_cost.detach().cpu().item()) if 'cvar_cost' in locals() else float(pred_mean.mean().cpu().item())
+			delta = self.lagrange_lr * (cvar_val - float(self.beta_threshold))
+			self.lambda_cost = max(0.0, float(self.lambda_cost) + float(delta))
 
 		return {
 			"critic1_loss": float(critic1_loss.item()),
@@ -269,6 +336,11 @@ class WCSACAgent:
 			"q1_mean": float(current_q1.mean().item()),
 			"q2_mean": float(current_q2.mean().item()),
 			"log_prob_mean": float(log_prob.mean().item()),
+			"cost_critic_loss": float(cost_critic_loss.item()),
+			"cvar_cost": float(cvar_cost.item()),
+			"lambda_cost": float(self.lambda_cost),
+			"cost_mean": float(cost_mean_pi.mean().item()),
+			"cost_std": float(cost_std_pi.mean().item()),
 		}
 
 	@staticmethod
@@ -302,8 +374,14 @@ class WCSACAgent:
 			"actor_optimizer": self.actor_optimizer.state_dict(),
 			"critic1_optimizer": self.critic1_optimizer.state_dict(),
 			"critic2_optimizer": self.critic2_optimizer.state_dict(),
+			"cost_critic": self.cost_critic.state_dict(),
+			"cost_critic_optimizer": self.cost_critic_optimizer.state_dict(),
 			"log_alpha": self.log_alpha.detach().cpu(),
 			"alpha_optimizer": self.alpha_optimizer.state_dict(),
+			"lambda_cost": float(self.lambda_cost),
+			"beta_threshold": float(self.beta_threshold),
+			"lagrange_lr": float(self.lagrange_lr),
+			"cost_mode": str(self.cost_mode),
 		}
 		torch.save(checkpoint, save_path)
 
@@ -339,6 +417,10 @@ class WCSACAgent:
 		self.actor_optimizer.load_state_dict(checkpoint["actor_optimizer"])
 		self.critic1_optimizer.load_state_dict(checkpoint["critic1_optimizer"])
 		self.critic2_optimizer.load_state_dict(checkpoint["critic2_optimizer"])
+		if "cost_critic" in checkpoint:
+			self.cost_critic.load_state_dict(checkpoint["cost_critic"])
+		if "cost_critic_optimizer" in checkpoint:
+			self.cost_critic_optimizer.load_state_dict(checkpoint["cost_critic_optimizer"])
 		self.alpha_optimizer.load_state_dict(checkpoint["alpha_optimizer"])
 
 		loaded_log_alpha = checkpoint["log_alpha"].to(self.device)
@@ -355,4 +437,13 @@ class WCSACAgent:
 			self.max_grad_norm = (
 				float(loaded_max_grad_norm) if loaded_max_grad_norm is not None else None
 			)
+
+		if "lambda_cost" in checkpoint:
+			self.lambda_cost = float(checkpoint["lambda_cost"])
+		if "beta_threshold" in checkpoint:
+			self.beta_threshold = float(checkpoint["beta_threshold"])
+		if "lagrange_lr" in checkpoint:
+			self.lagrange_lr = float(checkpoint["lagrange_lr"])
+		if "cost_mode" in checkpoint:
+			self.cost_mode = str(checkpoint["cost_mode"])
 

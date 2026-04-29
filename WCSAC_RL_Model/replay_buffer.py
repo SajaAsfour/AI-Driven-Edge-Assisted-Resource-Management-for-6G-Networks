@@ -40,6 +40,8 @@ class ReplayBuffer:
 		self._states = np.zeros((capacity, state_dim), dtype=np.float32)
 		self._actions = np.zeros((capacity, action_dim), dtype=np.float32)
 		self._rewards = np.zeros((capacity, 1), dtype=np.float32)
+		# cost signal for constrained RL (e.g., beta_current or exceedance)
+		self._costs = np.zeros((capacity, 1), dtype=np.float32)
 		self._next_states = np.zeros((capacity, state_dim), dtype=np.float32)
 		self._dones = np.zeros((capacity, 1), dtype=np.float32)
 
@@ -65,6 +67,7 @@ class ReplayBuffer:
 		state: np.ndarray | list | tuple,
 		action: np.ndarray | list | tuple,
 		reward: float,
+		cost: float,
 		next_state: np.ndarray | list | tuple,
 		done: bool | float | int,
 	) -> None:
@@ -93,6 +96,12 @@ class ReplayBuffer:
 		if not np.isfinite(reward_val):
 			raise ValueError(f"reward must be finite, got {reward!r}")
 
+		if not isinstance(cost, (int, float, np.floating, np.integer)):
+			raise ValueError(f"cost must be numeric, got {type(cost).__name__}")
+		cost_val = float(cost)
+		if not np.isfinite(cost_val):
+			raise ValueError(f"cost must be finite, got {cost!r}")
+
 		if isinstance(done, (bool, np.bool_)):
 			done_val = float(done)
 		elif isinstance(done, (int, float, np.integer, np.floating)):
@@ -106,6 +115,7 @@ class ReplayBuffer:
 		self._states[idx] = state_arr
 		self._actions[idx] = action_arr
 		self._rewards[idx, 0] = reward_val
+		self._costs[idx, 0] = cost_val
 		self._next_states[idx] = next_state_arr
 		self._dones[idx, 0] = done_val
 
@@ -145,6 +155,7 @@ class ReplayBuffer:
 			"states": self._states[indices],
 			"actions": self._actions[indices],
 			"rewards": self._rewards[indices],
+			"costs": self._costs[indices],
 			"next_states": self._next_states[indices],
 			"dones": self._dones[indices],
 		}
