@@ -588,15 +588,12 @@ def train_wcsac(
 			episode_reward_values.append(_safe_plot_float(reward))
 			episode_utilization_values.append(_safe_utilization(info.get("utilization")))
 			episode_rb_used_values.append(_safe_plot_float(info.get("rb_alloc")))
-			# Compute cost signal from environment beta (option A or B)
+			# Compute cost signal from environment beta.
 			beta_current = _safe_plot_float(info.get("beta_current"))
 			if beta_current is None:
 				cost_val = 0.0
 			else:
-				if getattr(config.agent, "cost_mode", "beta") == "exceedance":
-					cost_val = max(0.0, float(beta_current) - float(getattr(config.agent, "beta_threshold", 0.1)))
-				else:
-					cost_val = float(beta_current)
+				cost_val = max(0.0, float(beta_current) - float(getattr(config.agent, "beta_threshold", 0.1)))
 			replay_buffer.add(state, action, reward, cost_val, next_state, done)
 			episode_reward += float(reward)
 			total_steps += 1
