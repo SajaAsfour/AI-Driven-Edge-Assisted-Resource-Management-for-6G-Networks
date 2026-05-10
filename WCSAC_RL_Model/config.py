@@ -104,8 +104,8 @@ class ReplayBufferConfig:
 class TrainingConfig:
 	"""Core training-loop settings currently used by `train_wcsac`."""
 
-	max_episodes: int = 2000
-	max_steps_per_episode: int = 5
+	max_episodes: int = 10000
+	max_steps_per_episode: int = 200
 	batch_size: int = 16
 	warmup_steps: int = 0
 	verbose: bool = True
@@ -118,7 +118,7 @@ class EvaluationConfig:
 	evaluation_interval: int = 20
 	deterministic: bool = True
 	episodes: int = 5
-	max_steps_per_episode: int = 2
+	max_steps_per_episode: int = 200
 
 @dataclass(slots=True)
 class CheckpointConfig:
