@@ -15,7 +15,7 @@
       "voIPPlayoutLoss": 10.0
     },
     "cbr": {
-      "cbrReceivedThroughput": 3000.0
+      "cbrReceivedThroughput": 2000.0
     },
     "streaming": {
       "rtVideoStreamingSegmentLoss": 20.0

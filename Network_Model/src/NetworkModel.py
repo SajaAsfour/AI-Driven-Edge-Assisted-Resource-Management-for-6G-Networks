@@ -96,6 +96,22 @@ class NetworkModel:
 
     # Metric matrices
     metric_matrices: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    
+    # Traffic profiles for fallback: maps users count to profile ranges
+    # Applied to all traffic types: VoIP, CBR, and Video Streaming
+    TRAFFIC_PROFILES: Dict[str, List[int]] = field(
+        default_factory=lambda: {
+            'profile_1': [5, 10],
+            'profile_2': [15, 20],
+            'profile_3': [25, 30],
+            'profile_4': [35, 40],
+            'profile_5': [45, 50],
+            'profile_6': [55, 60],
+            'profile_7': [65, 70],
+            'profile_8': [75, 80],
+        },
+        init=False
+    )
 
     # Internal state
     _current_traffic_data: Optional[List[int]] = field(default=None, init=False)
@@ -238,7 +254,83 @@ class NetworkModel:
             num_total_values=len(all_traffic_values)
         )
 
+    # PROFILE-BASED FALLBACK HELPERS
+    
+    def _get_traffic_profile(self, users_count: int) -> Optional[str]:
+        """
+        Get the traffic profile that contains the given users count.
+        
+        Args:
+            users_count: The users count to look up
+            
+        Returns:
+            Profile name (e.g., 'profile_1') if found, None otherwise
+        """
+        for profile_name, profile_range in self.TRAFFIC_PROFILES.items():
+            if users_count in profile_range:
+                return profile_name
+        return None
+    
+    def _get_profile_users_counts(self, profile_name: str) -> List[int]:
+        """
+        Get all users counts available in a given profile.
+        
+        Args:
+            profile_name: The profile name (e.g., 'profile_1')
+            
+        Returns:
+            List of users counts in the profile
+        """
+        if profile_name not in self.TRAFFIC_PROFILES:
+            return []
+        return self.TRAFFIC_PROFILES[profile_name]
+    
+    def _get_fallback_traffic_count(self, original_users_count: int, available_keys: List[int]) -> int:
+        """
+        Get a fallback users count within the same traffic profile.
+        
+        When exact data for a given users count is missing, this method finds
+        another users count in the same profile that has available data.
+        The RB value remains unchanged during fallback.
+        
+        Args:
+            original_users_count: The original users count that has missing data
+            available_keys: List of users counts that have available data in mean_matrix
+            
+        Returns:
+            A users count from the same profile that has available data
+            
+        Raises:
+            ValueError: If users count is not in any profile or no valid fallback exists
+        """
+        # Find which profile the original users count belongs to
+        profile_name = self._get_traffic_profile(original_users_count)
+        
+        if profile_name is None:
+            raise ValueError(
+                f"Users count {original_users_count} does not belong to any defined traffic profile. "
+                f"Defined profiles: {list(self.TRAFFIC_PROFILES.keys())}"
+            )
+        
+        # Get all users counts in the same profile
+        profile_users_counts = set(self._get_profile_users_counts(profile_name))
+        
+        # Find which users counts in this profile have available data
+        available_in_profile = [u for u in available_keys if u in profile_users_counts]
+        
+        if not available_in_profile:
+            raise ValueError(
+                f"No fallback available for users count {original_users_count}. "
+                f"This users count belongs to {profile_name} with users range {self.TRAFFIC_PROFILES[profile_name]}. "
+                f"However, no data is available for ANY users count in this profile. "
+                f"Available users counts in data: {sorted(available_keys)}"
+            )
+        
+        # Return the first available users count in the profile (deterministic)
+        return available_in_profile[0]
+
     # BETA COMPUTATION    
+
     def get_qos_parameters(self, service: str, metric_name: str, 
                           traffic: int, rbs: int) -> tuple[float, float]:
         if service not in self.metric_matrices:
@@ -250,8 +342,9 @@ class NetworkModel:
         
         traffic_key = str(traffic)
         if traffic_key not in mean_matrix:
-            # Fallback: use nearest available traffic key when exact match is missing.
-            # This prevents training/inference interruption for out-of-grid traffic values.
+            # Profile-based fallback: use another users count from the same profile
+            # when exact data for the given users count is missing.
+            # The RB value is never changed during fallback.
             available_keys: List[int] = []
             for key in mean_matrix.keys():
                 try:
@@ -264,8 +357,9 @@ class NetworkModel:
                     f"No numeric traffic keys available in mean matrix for {metric_name}"
                 )
 
-            nearest_traffic = min(available_keys, key=lambda x: (abs(x - traffic), x))
-            traffic_key = str(nearest_traffic)
+            # Use profile-based fallback to find alternative users count in same profile
+            fallback_users_count = self._get_fallback_traffic_count(traffic, available_keys)
+            traffic_key = str(fallback_users_count)
         
         if rbs not in rbs_values:
             raise ValueError(f"RBS value {rbs} not found in available RBS values: {rbs_values}")
@@ -276,6 +370,7 @@ class NetworkModel:
         std_val = std_matrix[traffic_key][rbs_idx] / 10.0
         
         return mean_val, std_val
+
     
     def evaluate_single_metric(self, service: str, metric_name: str,
                                traffic: int, rbs: int) -> MetricEvaluation:
