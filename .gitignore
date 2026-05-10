@@ -4,5 +4,5 @@ __pycache__/
 .venv/
 checkpoints_test/
 checkpoints/
-.multi_traffic/
+multi_traffic/
 .vscode/
