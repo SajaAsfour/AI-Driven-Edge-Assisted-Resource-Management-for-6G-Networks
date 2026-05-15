@@ -6,7 +6,7 @@ import random
 import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 import numpy as np
 
@@ -25,6 +25,8 @@ from multi_slice.multi_traffic_config import (
 	resolve_final_checkpoint_path,
 )
 
+if TYPE_CHECKING:
+	from SAC_RL_Model.env_wrapper import NetworkSACEnv
 
 def _json_safe(value: Any) -> Any:
 	if isinstance(value, np.ndarray):
@@ -94,6 +96,8 @@ class TrafficInputRuntime:
 @dataclass(slots=True)
 class TrafficStepLog:
 	dti_index: int
+	traffic_dti_1: List[int]
+	traffic_dti_2: List[int]
 	requested_rb_1: int
 	requested_rb_2: int
 	total_requested_rb: int
@@ -202,6 +206,13 @@ class MultiTrafficPredictor:
 			traffic_1 = runtime_1.traffic_matrix[dti_index]
 			traffic_2 = runtime_2.traffic_matrix[dti_index]
 
+			self.logger.info(
+				"DTI %s | traffic TTIs input_1=%s | input_2=%s",
+				display_dti,
+				traffic_1,
+				traffic_2,
+			)
+
 			requested_1 = runtime_1.env.infer_rb_from_traffic(
 				agent=runtime_1.agent,
 				traffic_dti=traffic_1,
@@ -225,6 +236,8 @@ class MultiTrafficPredictor:
 
 			step_log = TrafficStepLog(
 				dti_index=display_dti,
+				traffic_dti_1=list(traffic_1),
+				traffic_dti_2=list(traffic_2),
 				requested_rb_1=requested_1,
 				requested_rb_2=requested_2,
 				total_requested_rb=allocation.total_requested,
