@@ -14,17 +14,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
 	sys.path.insert(0, str(PROJECT_ROOT))
 
-from SAC_RL_Model.agent import SACAgent
-from SAC_RL_Model.env_wrapper import NetworkSACEnv
 from SAC_RL_Model.traffic_profiles import build_traffic_matrix_from_profile, get_default_profiles, get_profile_or_raise
 
-from multi_slice_SAC.multi_traffic_allocator import AllocationDecision, proportional_allocate_two_requests
-from multi_slice_SAC.multi_traffic_config import (
+from multi_slice.multi_traffic_allocator import AllocationDecision, proportional_allocate_two_requests
+from multi_slice.multi_traffic_config import (
 	AVAILABLE_SERVICES,
 	MultiTrafficPredictionConfig,
 	TrafficInputSelection,
 	normalize_service_name,
-	resolve_default_checkpoint_base_dir,
 	resolve_final_checkpoint_path,
 )
 
@@ -87,8 +84,8 @@ def evaluate_allocation(
 @dataclass(slots=True)
 class TrafficInputRuntime:
 	selection: TrafficInputSelection
-	env: NetworkSACEnv
-	agent: SACAgent
+	env: Any
+	agent: Any
 	checkpoint_path: Path
 	profile_values: List[int]
 	traffic_matrix: List[List[int]]
@@ -122,13 +119,12 @@ class MultiTrafficPredictionResult:
 
 
 class MultiTrafficPredictor:
-	"""Run two SAC agents in evaluation-only mode and allocate RBs globally."""
+	"""Run two trained RL agents in evaluation-only mode and allocate RBs globally."""
 
 	def __init__(self, config: MultiTrafficPredictionConfig, logger: Optional[logging.Logger] = None) -> None:
 		self.config = config.normalized()
 		self.logger = logger or logging.getLogger("multi_traffic_prediction")
-		self.base_checkpoint_dir = self.config.checkpoint_base_dir or resolve_default_checkpoint_base_dir()
-		self.base_checkpoint_dir = Path(self.base_checkpoint_dir)
+		self.base_checkpoint_dir = Path(self.config.checkpoint_base_dir)
 		self.base_checkpoint_dir.mkdir(parents=True, exist_ok=True)
 		self.output_dir = Path(self.config.output_dir)
 		self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -136,15 +132,28 @@ class MultiTrafficPredictor:
 		if self.config.capacity <= 0:
 			raise ValueError("capacity must be > 0")
 
+	def _load_model_components(self) -> tuple[Any, Any]:
+		if self.config.model_name == "wcsac":
+			from WCSAC_RL_Model.agent import WCSACAgent
+			from WCSAC_RL_Model.env_wrapper import NetworkWCSACEnv
+
+			return NetworkWCSACEnv, WCSACAgent
+
+		from SAC_RL_Model.agent import SACAgent
+		from SAC_RL_Model.env_wrapper import NetworkSACEnv
+
+		return NetworkSACEnv, SACAgent
+
 	def _build_runtime_input(self, selection: TrafficInputSelection, label: str, seed_offset: int) -> TrafficInputRuntime:
 		service = normalize_service_name(selection.service)
 		profile_name = str(selection.profile_name).strip().lower()
 		profiles = get_default_profiles()
 		_, profile_values = get_profile_or_raise(profiles, profile_name)
 
-		checkpoint_path = resolve_final_checkpoint_path(self.base_checkpoint_dir, service)
+		checkpoint_path = resolve_final_checkpoint_path(self.base_checkpoint_dir, service, self.config.model_name)
+		env_class, agent_class = self._load_model_components()
 
-		env = NetworkSACEnv(
+		env = env_class(
 			service=service,
 			traffic_profile_mode="fixed",
 			fixed_profile_name=profile_name,
@@ -155,7 +164,7 @@ class MultiTrafficPredictor:
 
 		state_dim = int(np.prod(env.observation_shape))
 		action_dim = int(np.prod(env.action_shape))
-		agent = SACAgent(state_dim=state_dim, action_dim=action_dim)
+		agent = agent_class(state_dim=state_dim, action_dim=action_dim)
 		agent.load(checkpoint_path)
 
 		rng = random.Random(self.config.seed + seed_offset)
@@ -248,6 +257,7 @@ class MultiTrafficPredictor:
 			config={
 				"capacity": self.config.capacity,
 				"seed": self.config.seed,
+				"model_name": self.config.model_name or "sac",
 			},
 			inputs=[
 				{
@@ -266,8 +276,8 @@ class MultiTrafficPredictor:
 				},
 			],
 			steps=step_logs,
-			output_path=self.output_dir / "multi_traffic_prediction_output.json",
-			log_path=self.output_dir / "multi_traffic_prediction.log",
+			output_path=self.output_dir / (f"{self.config.model_name}_multi_traffic_prediction_output.json" if self.config.model_name else "multi_traffic_prediction_output.json"),
+			log_path=self.output_dir / (f"{self.config.model_name}_multi_traffic_prediction.log" if self.config.model_name else "multi_traffic_prediction.log"),
 		)
 
 		result.output_path.write_text(json.dumps(_json_safe(result.to_dict()), indent=2), encoding="utf-8")

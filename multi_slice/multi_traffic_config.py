@@ -10,13 +10,29 @@ from SAC_RL_Model.config import get_default_config
 PACKAGE_ROOT = Path(__file__).resolve().parent
 WORKSPACE_ROOT = PACKAGE_ROOT.parent
 AVAILABLE_SERVICES = ("voip", "cbr", "streaming")
+AVAILABLE_MODELS = ("sac", "wcsac")
 
 
 def resolve_project_root() -> Path:
 	return WORKSPACE_ROOT
 
 
-def resolve_default_checkpoint_base_dir() -> Path:
+def normalize_model_name(model_name: str | None) -> str | None:
+	if model_name is None:
+		return None
+	if not isinstance(model_name, str):
+		raise ValueError("model_name must be a string or None")
+	model_key = model_name.strip().lower()
+	if model_key not in AVAILABLE_MODELS:
+		raise ValueError(f"model_name must be one of: {', '.join(AVAILABLE_MODELS)}")
+	return model_key
+
+
+def resolve_default_checkpoint_base_dir(model_name: str | None = None) -> Path:
+	model_key = normalize_model_name(model_name)
+	if model_key == "wcsac":
+		return WORKSPACE_ROOT / "WCSAC_RL_Model" / "checkpoints"
+
 	cfg = get_default_config()
 	checkpoint_dir = Path(cfg.checkpoint.checkpoint_dir)
 	if checkpoint_dir.is_absolute():
@@ -33,9 +49,11 @@ def normalize_service_name(service: str) -> str:
 	return service_key
 
 
-def resolve_final_checkpoint_path(base_checkpoint_dir: Path, service: str) -> Path:
+def resolve_final_checkpoint_path(base_checkpoint_dir: Path, service: str, model_name: str | None = None) -> Path:
 	service_key = normalize_service_name(service)
-	checkpoint_path = base_checkpoint_dir / service_key / "random" / f"sac_{service_key}_final.pt"
+	model_key = normalize_model_name(model_name) or "sac"
+	checkpoint_prefix = "wcsac" if model_key == "wcsac" else "sac"
+	checkpoint_path = base_checkpoint_dir / service_key / "random" / f"{checkpoint_prefix}_{service_key}_final.pt"
 	if not checkpoint_path.exists():
 		raise FileNotFoundError(
 			f"Final checkpoint not found for service '{service_key}'. Expected path: {checkpoint_path}"
@@ -65,18 +83,21 @@ class MultiTrafficPredictionConfig:
 
 	input_1: TrafficInputSelection
 	input_2: TrafficInputSelection
+	model_name: Optional[str] = None
 	capacity: int = 8
 	seed: int = 42
 	output_dir: Path = field(default_factory=lambda: PACKAGE_ROOT / "SAC_RL_Model" / "checkpoints" / "multi_traffic")
 	checkpoint_base_dir: Optional[Path] = None
 
 	def normalized(self) -> "MultiTrafficPredictionConfig":
-		base_dir = Path(self.checkpoint_base_dir).expanduser() if self.checkpoint_base_dir is not None else resolve_default_checkpoint_base_dir()
+		model_key = normalize_model_name(self.model_name)
+		base_dir = Path(self.checkpoint_base_dir).expanduser() if self.checkpoint_base_dir is not None else resolve_default_checkpoint_base_dir(model_key)
 		if not base_dir.is_absolute():
 			base_dir = (WORKSPACE_ROOT / base_dir).resolve()
 		return MultiTrafficPredictionConfig(
 			input_1=self.input_1.normalized(),
 			input_2=self.input_2.normalized(),
+			model_name=model_key,
 			capacity=int(self.capacity),
 			seed=int(self.seed),
 			output_dir=Path(self.output_dir).expanduser(),
