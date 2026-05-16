@@ -91,6 +91,70 @@ def save_episode_dti_plots(episode_data: List[Dict[str, Any]], output_dir: Path)
     return generated
 
 
+def save_prediction_beta_plot(
+    dti_indices: List[int],
+    beta_values: List[float],
+    output_dir: Path,
+    service: str,
+    model_type: str
+) -> Path:
+    """
+    Save Beta vs DTI plot for prediction results.
+    
+    Args:
+        dti_indices: List of DTI indices
+        beta_values: List of beta_current values
+        output_dir: Directory to save the plot
+        service: Service name (voip, cbr, streaming)
+        model_type: Model type (wcsac, sac)
+        
+    Returns:
+        Path to the saved plot file
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Ensure lengths match
+    min_len = min(len(dti_indices), len(beta_values))
+    if min_len <= 0:
+        raise ValueError("No DTI indices or beta values provided")
+    
+    x_vals = dti_indices[:min_len]
+    beta_vals = beta_values[:min_len]
+    
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    ax.plot(x_vals, beta_vals, marker="o", linewidth=2, markersize=8, color="steelblue")
+    
+    # Title with service and model type
+    title = f"Beta vs DTI - Prediction - {service.upper()} - {model_type.upper()}"
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    
+    ax.set_xlabel("DTI Index", fontsize=12)
+    ax.set_ylabel("beta_current", fontsize=12)
+    ax.grid(True, alpha=0.3)
+    
+    # Add text label inside the plot showing service and model
+    label_text = f"Service: {service.upper()}\nModel: {model_type.upper()}"
+    ax.text(
+        0.02, 0.98, label_text,
+        transform=ax.transAxes,
+        fontsize=10,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5)
+    )
+    
+    fig.tight_layout()
+    
+    # Save the plot
+    filename = f"prediction_beta_vs_dti_{service}_{model_type}.png"
+    plot_path = output_dir / filename
+    fig.savefig(plot_path, dpi=150)
+    plt.close(fig)
+    
+    return plot_path
+
+
 
 def setup_logging(log_file: str = "debug.log"):
     """
@@ -1039,12 +1103,20 @@ def predict_resource_blocks_from_input(
     base_checkpoint_dir: Union[str, Path] = "WCSAC_RL_Model/checkpoints",
     seed: Optional[int] = 42,
     default_risk_alpha: float = 0.1,
+    network_config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Predict per-DTI RB allocations for each service using trained WCSAC checkpoints.
 
     This function reuses existing `NetworkWCSACEnv` and `WCSACAgent` inference logic
     (`env.infer_rb_from_traffic(...)`) without rewriting policy behavior.
+    
+    Args:
+        sample_input: Traffic input dictionary
+        base_checkpoint_dir: Directory containing checkpoints
+        seed: Random seed
+        default_risk_alpha: Default risk alpha parameter
+        network_config: Network configuration for beta calculation
     """
     try:
         from WCSAC_RL_Model.trainer import load_config
@@ -1074,6 +1146,8 @@ def predict_resource_blocks_from_input(
 
     predicted_per_dti: Dict[str, List[int]] = {}
     predicted_per_tti: Dict[str, List[List[int]]] = {}
+    beta_per_dti: Dict[str, List[float]] = {}
+    reward_per_dti: Dict[str, List[float]] = {}
 
     for service in required_services:
         ckpt_path = resolve_random_final_checkpoint(base_checkpoint_dir_path, service)
@@ -1117,6 +1191,8 @@ def predict_resource_blocks_from_input(
 
         service_rb_per_dti: List[int] = []
         service_rb_per_tti: List[List[int]] = []
+        service_beta_per_dti: List[float] = []
+        service_reward_per_dti: List[float] = []
 
         for dti_index, traffic_dti in enumerate(service_traffic):
             if not isinstance(traffic_dti, list):
@@ -1135,12 +1211,69 @@ def predict_resource_blocks_from_input(
             service_rb_per_dti.append(rb_pred)
             service_rb_per_tti.append([rb_pred] * env.n)
 
+            # Calculate beta_current if network_config is provided
+            beta_val = float("nan")
+            reward_val = float("nan")
+            if network_config is not None:
+                try:
+                    # Create RB data from predicted RB (replicate for each TTI)
+                    rb_dti = [rb_pred] * env.n
+                    
+                    # Get network model
+                    model = NetworkModel(
+                        n=network_config['n'],
+                        m=network_config['m'],
+                        k=network_config['k'],
+                        traffic_elements=network_config['traffic_elements'],
+                        q_thresholds_voip=network_config['q_thresholds_voip'],
+                        q_thresholds_cbr=network_config['q_thresholds_cbr'],
+                        q_thresholds_streaming=network_config['q_thresholds_streaming']
+                    )
+                    
+                    # Load metric matrices for the service
+                    config_dir = BASE_DIR / "Network_Model" / "data" / "configuration"
+                    service_files = {
+                        'voip': config_dir / 'D2min_VoIP_summary.json',
+                        'cbr': config_dir / 'D30sec_CBR_summary.json',
+                        'streaming': config_dir / 'D90sec_VideoStream_summary.json'
+                    }
+                    json_file = service_files.get(service)
+                    if json_file and json_file.exists():
+                        metric_data = load_metric_matrices(service, json_file)
+                        model.set_metric_matrices(service, metric_data)
+                        model.set_service(service)
+                        model.reset(service)
+                        
+                        # Compute beta
+                        beta_result = model.compute_beta(traffic_dti, rb_dti)
+                        beta_val = float(beta_result.beta_current)
+                        
+                        # Compute reward
+                        c_capacity = network_config['c']
+                        service_rb_index = {"voip": 0, "cbr": 1, "streaming": 2}[service]
+                        rb_used = network_config['resource_blocks_per_dti'][dti_index][service_rb_index]
+                        lambda_reward = network_config['lambda_reward']
+                        
+                        reward_val = model.compute_reward_current(
+                            beta_val, c_capacity, rb_used, lambda_reward
+                        )
+                        reward_val = float(reward_val)
+                except Exception as e:
+                    print(f"Warning: Failed to calculate beta for {service} DTI {dti_index}: {e}")
+            
+            service_beta_per_dti.append(beta_val)
+            service_reward_per_dti.append(reward_val)
+
         predicted_per_dti[service] = service_rb_per_dti
         predicted_per_tti[service] = service_rb_per_tti
+        beta_per_dti[service] = service_beta_per_dti
+        reward_per_dti[service] = service_reward_per_dti
 
     return {
         "predicted_resource_blocks_per_dti": predicted_per_dti,
         "predicted_resource_blocks_per_tti": predicted_per_tti,
+        "beta_values_per_dti": beta_per_dti,
+        "reward_values_per_dti": reward_per_dti,
     }
 
 
@@ -1175,12 +1308,29 @@ def run_wcsac_custom_inference_mode() -> None:
     checkpoint_dir_cfg = Path(cfg.checkpoint.checkpoint_dir)
     base_checkpoint_dir = checkpoint_dir_cfg if checkpoint_dir_cfg.is_absolute() else BASE_DIR / checkpoint_dir_cfg
 
+    # Load network configuration for beta calculation
+    network_config = None
+    try:
+        CONFIG_DIR = BASE_DIR / "Network_Model" / "data" / "configuration"
+        INPUT_DIR = BASE_DIR / "Network_Model" / "data" / "input"
+        config_file = CONFIG_DIR / "network_config.json"
+        input_file = INPUT_DIR / "network_input.json"
+        
+        if config_file.exists() and input_file.exists():
+            network_config = load_configuration(config_file, input_file)
+            print("Loaded network configuration for beta calculation")
+        else:
+            print("WARNING: Network configuration files not found; beta calculation will be skipped")
+    except Exception as e:
+        print(f"WARNING: Failed to load network configuration: {e}")
+
     try:
         output = predict_resource_blocks_from_input(
             sample_input=sample_input,
             base_checkpoint_dir=base_checkpoint_dir,
             seed=42,
             default_risk_alpha=float(cfg.agent.risk_alpha),
+            network_config=network_config,
         )
     except Exception as e:
         print(f"ERROR: Custom WCSAC inference failed: {e}")
@@ -1205,6 +1355,7 @@ def run_wcsac_custom_inference_mode() -> None:
         traffic_users = sample_input.get("traffic_users_per_tti", {})
         services = ["voip", "cbr", "streaming"]
         default_profiles = list(get_default_profiles().values())
+        model_type = "wcsac"
 
         def infer_profile_number_from_dti(dti_values: Any) -> float:
             if not isinstance(dti_values, (list, tuple)) or not dti_values:
@@ -1225,23 +1376,29 @@ def run_wcsac_custom_inference_mode() -> None:
             return float(closest_idx)
 
         allocation = output.get("predicted_resource_blocks_per_dti", {})
+        beta_values = output.get("beta_values_per_dti", {})
+        reward_values = output.get("reward_values_per_dti", {})
         saved_plot_paths: List[Path] = []
 
         for svc in services:
             svc_data = traffic_users.get(svc, [])
             rb_list = allocation.get(svc, [])
+            svc_beta_values = beta_values.get(svc, [])
+            
             if not svc_data or not rb_list:
                 continue
 
             plot_dir = base_checkpoint_dir / svc / "sample_input_plots"
             plot_dir.mkdir(parents=True, exist_ok=True)
 
-            fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(16, 6))
+            # Create combined plot with 3 subplots: Traffic Profile, RB Allocation, and Beta
+            fig, (ax_left, ax_center, ax_right) = plt.subplots(1, 3, figsize=(22, 6))
 
             x_vals = list(range(1, min(len(svc_data), len(rb_list)) + 1))
             profile_numbers = [infer_profile_number_from_dti(dti) for dti in svc_data[: len(x_vals)]]
             rb_values = [int(x) for x in rb_list[: len(x_vals)]]
 
+            # Left plot: Traffic Profile
             ax_left.plot(x_vals, profile_numbers, marker="o", linewidth=1.5, label=svc.capitalize())
             ax_left.set_title(f"Traffic Profile Number per DTI - {svc.capitalize()}")
             ax_left.set_xlabel("Number of DTI")
@@ -1252,25 +1409,78 @@ def run_wcsac_custom_inference_mode() -> None:
             ax_left.set_xlim(left=1)
             ax_left.grid(True)
             ax_left.legend()
+            
+            # Add service and model label to left plot
+            label_text = f"Service: {svc.upper()}\nModel: {model_type.upper()}"
+            ax_left.text(
+                0.98, 0.05, label_text,
+                transform=ax_left.transAxes,
+                fontsize=8,
+                verticalalignment="bottom",
+                horizontalalignment="right",
+                bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5)
+            )
 
-            ax_right.plot(x_vals, rb_values, marker="o", linewidth=1.5, label=svc.capitalize())
-            ax_right.set_title(f"Agent RB Allocation per DTI - {svc.capitalize()}")
-            ax_right.set_xlabel("Number of DTI")
-            ax_right.set_ylabel("Allocated RBs")
-            ax_right.set_xticks(np.arange(1, len(x_vals) + 1, 5))
-            ax_right.set_xlim(left=1)
-            ax_right.grid(True)
-            ax_right.legend()
+            # Center plot: RB Allocation
+            ax_center.plot(x_vals, rb_values, marker="o", linewidth=1.5, label=svc.capitalize(), color="darkorange")
+            ax_center.set_title(f"Agent RB Allocation per DTI - {svc.capitalize()}")
+            ax_center.set_xlabel("Number of DTI")
+            ax_center.set_ylabel("Allocated RBs")
+            ax_center.set_xticks(np.arange(1, len(x_vals) + 1, 5))
+            ax_center.set_xlim(left=1)
+            ax_center.grid(True)
+            ax_center.legend()
+            
+            # Add service and model label to center plot
+            ax_center.text(
+                0.98, 0.05, label_text,
+                transform=ax_center.transAxes,
+                fontsize=8,
+                verticalalignment="bottom",
+                horizontalalignment="right",
+                bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5)
+            )
+
+            # Right plot: Beta values
+            beta_x_vals = list(range(1, len(svc_beta_values) + 1))
+            has_valid_beta = svc_beta_values and not all(np.isnan(v) for v in svc_beta_values)
+            
+            if has_valid_beta:
+                ax_right.plot(beta_x_vals, svc_beta_values, marker="o", linewidth=1.5, label=svc.capitalize(), color="steelblue")
+                ax_right.set_title(f"Beta Current per DTI - {svc.capitalize()}")
+                ax_right.set_xlabel("Number of DTI")
+                ax_right.set_ylabel("beta_current")
+                ax_right.set_xticks(np.arange(1, len(beta_x_vals) + 1, 5))
+                ax_right.set_xlim(left=1)
+                ax_right.grid(True)
+                ax_right.legend()
+            else:
+                ax_right.text(0.5, 0.5, "No valid beta data", 
+                             ha="center", va="center", transform=ax_right.transAxes, fontsize=12)
+                ax_right.set_title(f"Beta Current per DTI - {svc.capitalize()}")
+                ax_right.set_xlabel("Number of DTI")
+                ax_right.set_ylabel("beta_current")
+            
+            # Add service and model label to right plot
+            ax_right.text(
+                0.98, 0.05, label_text,
+                transform=ax_right.transAxes,
+                fontsize=8,
+                verticalalignment="bottom",
+                horizontalalignment="right",
+                bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5)
+            )
 
             fig.tight_layout()
-            service_file = plot_dir / f"{svc}_combined_traffic_rb_plots.png"
+            service_file = plot_dir / f"{svc}_combined_traffic_rb_beta_plots.png"
             fig.savefig(service_file, dpi=150)
             plt.close(fig)
             saved_plot_paths.append(service_file)
 
-        print("\nSaved sample-input plots to:")
+        print("\nSaved combined prediction plots (Traffic, RB, Beta) to:")
         for plot_path in saved_plot_paths:
             print(plot_path)
+
     except Exception as e:
         print(f"WARNING: Failed to generate sample-input plots: {e}")
 
