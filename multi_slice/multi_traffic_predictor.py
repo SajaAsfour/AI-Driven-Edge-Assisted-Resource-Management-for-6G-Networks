@@ -18,7 +18,6 @@ from SAC_RL_Model.traffic_profiles import build_traffic_matrix_from_profile, get
 
 from multi_slice.multi_traffic_allocator import AllocationDecision, proportional_allocate_two_requests
 from multi_slice.multi_traffic_config import (
-	AVAILABLE_SERVICES,
 	MultiTrafficPredictionConfig,
 	TrafficInputSelection,
 	normalize_service_name,
@@ -59,7 +58,6 @@ def evaluate_allocation(
 	env: NetworkSACEnv,
 	traffic_dti: Sequence[int],
 	allocated_rb: int,
-	dti_index: int,
 ) -> Dict[str, Any]:
 	traffic_vec = env._normalize_traffic_vector(traffic_dti)
 	rb_data = [int(allocated_rb)] * env.n
@@ -231,8 +229,8 @@ class MultiTrafficPredictor:
 				min_rb=1,
 			)
 
-			eval_1 = evaluate_allocation(runtime_1.env, traffic_1, allocation.allocation_1, dti_index)
-			eval_2 = evaluate_allocation(runtime_2.env, traffic_2, allocation.allocation_2, dti_index)
+			eval_1 = evaluate_allocation(runtime_1.env, traffic_1, allocation.allocation_1)
+			eval_2 = evaluate_allocation(runtime_2.env, traffic_2, allocation.allocation_2)
 
 			step_log = TrafficStepLog(
 				dti_index=display_dti,

@@ -11,10 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 if TYPE_CHECKING:
-	from .agent import WCSACAgent
 	from .config import WCSACConfig
-	from .env_wrapper import NetworkWCSACEnv
-	from .replay_buffer import ReplayBuffer
 
 
 def _to_json_safe(value: Any) -> Any:

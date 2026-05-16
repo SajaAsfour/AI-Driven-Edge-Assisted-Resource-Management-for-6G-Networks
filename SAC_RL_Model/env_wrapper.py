@@ -152,7 +152,7 @@ class NetworkSACEnv:
 			if metric_file is not None
 			else config_dir / self.SERVICE_FILE_NAMES[self.service]
 		)
-		metric_data = load_metric_matrices(self.service, metric_path)
+		metric_data = load_metric_matrices(metric_path)
 		self.model.set_metric_matrices(self.service, metric_data)
 		self.model.set_service(self.service)
 

@@ -222,7 +222,7 @@ class NetworkModel:
 
     # CDF COMPUTATION
     
-    def compute_cdf(self, traffic_data: List[int], rb_data: List[int]) -> CDFResult:
+    def compute_cdf(self, traffic_data: List[int]) -> CDFResult:
         """Compute CDF for ONE DTI."""
         if self._current_service is None:
             raise ValueError("Service not set. Call set_service() first.")
@@ -537,7 +537,7 @@ class NetworkModel:
         
         service = self._current_service
         
-        cdf_result = self.compute_cdf(traffic_data, rb_data)
+        cdf_result = self.compute_cdf(traffic_data)
         beta_result = self.compute_beta(traffic_data, rb_data)
         reward_current = self.compute_reward_current(
             beta_result.beta_current,

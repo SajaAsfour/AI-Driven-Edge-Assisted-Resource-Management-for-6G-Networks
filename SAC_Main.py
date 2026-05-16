@@ -418,7 +418,7 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
     }
 
 
-def load_metric_matrices(service: str, json_file: Path) -> Dict[str, Any]:
+def load_metric_matrices(json_file: Path) -> Dict[str, Any]:
     with open(json_file, 'r') as f:
         data = json.load(f)
     
@@ -796,7 +796,7 @@ def run_networkmodel(config: Dict[str, Any], config_dir: Path, logger: logging.L
 
         json_file = service_files[service]
         try:
-            metric_data = load_metric_matrices(service, json_file)
+            metric_data = load_metric_matrices(json_file)
             model.set_metric_matrices(service, metric_data)
         except FileNotFoundError:
             print(f"ERROR: File not found: {json_file.name}")
@@ -846,7 +846,6 @@ def run_networkmodel(config: Dict[str, Any], config_dir: Path, logger: logging.L
 
             state, reward_current = model.to_rl_input(dti_result)
             beta_current, cdf_matrix = state
-            result = (state, reward_current)
 
             cdf = dti_result.cdf_result
             beta = dti_result.beta_result
@@ -1356,7 +1355,7 @@ def predict_resource_blocks_from_input(
                     }
                     json_file = service_files.get(service)
                     if json_file and json_file.exists():
-                        metric_data = load_metric_matrices(service, json_file)
+                        metric_data = load_metric_matrices(json_file)
                         model.set_metric_matrices(service, metric_data)
                         model.set_service(service)
                         model.reset(service)
@@ -1492,7 +1491,6 @@ def run_sac_custom_inference_mode() -> None:
 
         allocation = output.get("predicted_resource_blocks_per_dti", {})
         beta_values = output.get("beta_values_per_dti", {})
-        reward_values = output.get("reward_values_per_dti", {})
         saved_plot_paths: List[Path] = []
 
         for svc in services:
