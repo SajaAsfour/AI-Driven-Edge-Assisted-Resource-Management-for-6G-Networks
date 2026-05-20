@@ -1294,6 +1294,136 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _build_network_model_from_config(network_config: Dict[str, Any]) -> NetworkModel:
+    """Create a NetworkModel instance from a loaded network configuration."""
+    return NetworkModel(
+        n=network_config['n'],
+        m=network_config['m'],
+        k=network_config['k'],
+        traffic_elements=network_config['traffic_elements'],
+        q_thresholds_voip=network_config['q_thresholds_voip'],
+        q_thresholds_cbr=network_config['q_thresholds_cbr'],
+        q_thresholds_streaming=network_config['q_thresholds_streaming']
+    )
+
+
+def _load_service_metric_data(service: str) -> Dict[str, Any]:
+    """Load the metric matrix summary JSON for a specific service."""
+    config_dir = BASE_DIR / "Network_Model" / "data" / "configuration"
+    service_files = {
+        'voip': config_dir / 'D2min_VoIP_summary.json',
+        'cbr': config_dir / 'D30sec_CBR_summary.json',
+        'streaming': config_dir / 'D90sec_VideoStream_summary.json'
+    }
+    json_file = service_files.get(service)
+    if json_file is None:
+        raise ValueError(f"Unknown service for metric loading: {service}")
+    if not json_file.exists():
+        raise FileNotFoundError(f"Metric matrix file not found: {json_file}")
+    return load_metric_matrices(json_file)
+
+
+def run_service_beta_sweep_test(
+    service: str,
+    sample_input: Dict[str, Any],
+    network_config: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Manually sweep beta_current across fixed RB values for each DTI for one service.
+
+    This is a deterministic sanity test for the environment and does not use the trained agent.
+    """
+    logger = logging.getLogger(__name__)
+
+    if service not in {"voip", "cbr", "streaming"}:
+        raise ValueError(f"Unsupported service for beta sweep: {service}")
+    if not isinstance(sample_input, dict):
+        raise ValueError("sample_input must be a dictionary")
+    if not isinstance(network_config, dict):
+        raise ValueError("network_config must be a dictionary")
+
+    traffic_all = sample_input.get("traffic_users_per_tti")
+    if not isinstance(traffic_all, dict):
+        raise ValueError("sample_input must contain 'traffic_users_per_tti' as a dictionary")
+
+    service_traffic = traffic_all.get(service)
+    if not isinstance(service_traffic, list):
+        raise ValueError(f"sample_input['traffic_users_per_tti']['{service}'] must be a list of DTIs")
+
+    model = _build_network_model_from_config(network_config)
+    metric_data = _load_service_metric_data(service)
+    model.set_metric_matrices(service, metric_data)
+    model.set_service(service)
+    model.reset(service)
+
+    rb_values = list(range(1, 9))
+    sweep_rows: List[Dict[str, Any]] = []
+    rng_state = np.random.get_state()
+    service_title = service.upper() if service != "streaming" else "STREAMING"
+
+    try:
+        logger.info("")
+        logger.info(f"{service_title} BETA SWEEP TEST")
+        logger.info("DTI | Traffic Profile | RB=1 | RB=2 | RB=3 | RB=4 | RB=5 | RB=6 | RB=7 | RB=8")
+
+        for dti_index, traffic_dti in enumerate(service_traffic, start=1):
+            if not isinstance(traffic_dti, list):
+                raise ValueError(f"traffic_users_per_tti.{service}[{dti_index - 1}] must be a list")
+            if len(traffic_dti) != model.n:
+                raise ValueError(
+                    f"traffic_users_per_tti.{service}[{dti_index - 1}] must have length n={model.n}, got {len(traffic_dti)}"
+                )
+
+            row_results: List[Dict[str, Any]] = []
+            beta_cells: List[str] = []
+
+            for rb in rb_values:
+                rb_dti = [rb] * model.n
+                beta_result = model.compute_beta(traffic_dti, rb_dti)
+
+                row_results.append({
+                    "rb": rb,
+                    "beta_current": float(beta_result.beta_current),
+                    "dti_total_failures": int(beta_result.dti_total_failures),
+                    "dti_total_traffic": int(beta_result.dti_total_traffic),
+                })
+
+                beta_cells.append(f"{float(beta_result.beta_current):.4f}")
+
+            sweep_rows.append({
+                "dti_index": dti_index,
+                "traffic_profile": traffic_dti,
+                "results": row_results,
+            })
+
+            logger.info(
+                f"{dti_index} | {traffic_dti} | " + " | ".join(beta_cells)
+            )
+
+        logger.info(f"END OF {service_title} BETA SWEEP TEST")
+
+    finally:
+        np.random.set_state(rng_state)
+
+    sweep_output = {
+        "service": service,
+        "rb_values": rb_values,
+        "dtis": sweep_rows,
+    }
+
+    output_path = BASE_DIR / "WCSAC_RL_Model" / "checkpoints" / f"{service}_beta_sweep_test.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(_json_safe(sweep_output), indent=2, ensure_ascii=False), encoding="utf-8")
+    logger.info(f"Saved {service_title} beta sweep results to: {output_path}")
+
+    return sweep_output
+
+
+def run_voip_beta_sweep_test(sample_input: Dict[str, Any], network_config: Dict[str, Any]) -> Dict[str, Any]:
+    """Backward-compatible wrapper for the VoIP beta sweep test."""
+    return run_service_beta_sweep_test("voip", sample_input, network_config)
+
+
 def run_wcsac_custom_inference_mode() -> None:
     try:
         from WCSAC_RL_Model.config import get_default_config
@@ -1333,6 +1463,13 @@ def run_wcsac_custom_inference_mode() -> None:
     except Exception as e:
         print(f"ERROR: Custom WCSAC inference failed: {e}")
         return
+
+    if network_config is not None:
+        for service_name in ("voip", "cbr", "streaming"):
+            try:
+                run_service_beta_sweep_test(service_name, sample_input=sample_input, network_config=network_config)
+            except Exception as e:
+                print(f"WARNING: {service_name.upper()} beta sweep test failed: {e}")
 
     print("\n" + "=" * 60)
     print("CUSTOM WCSAC INFERENCE OUTPUT")
