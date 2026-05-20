@@ -76,7 +76,6 @@ class WCSACAgent:
 		beta_threshold: float = 0.1,
 		lagrange_lr: float = 1e-3,
 		lambda_init: float = 1.0,
-		cost_mode: str = "beta",
 	) -> None:
 		if not isinstance(state_dim, int) or state_dim <= 0:
 			raise ValueError(f"state_dim must be positive int, got {state_dim!r}")
@@ -100,7 +99,6 @@ class WCSACAgent:
 		self.beta_threshold = float(beta_threshold)
 		self.lagrange_lr = float(lagrange_lr)
 		self.lambda_cost = float(lambda_init)
-		self.cost_mode = str(cost_mode)
 
 		if device is None:
 			device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -147,6 +145,7 @@ class WCSACAgent:
 		self.critic2_optimizer = Adam(self.critic2.parameters(), lr=critic_lr)
 
 		# Cost / risk critic (Gaussian: predict mean and log-variance)
+		# Trains on beta exceedance cost: max(0, beta_current - beta_threshold)
 		self.cost_critic = CostCritic(
 			state_dim=state_dim,
 			action_dim=action_dim,
@@ -172,6 +171,11 @@ class WCSACAgent:
 
 		# lambda_cost already initialized from lambda_init; keep as float
 		self.lambda_cost = float(self.lambda_cost)
+
+	@staticmethod
+	def _beta_exceedance_cost(beta_current: float, beta_threshold: float) -> float:
+		"""Return the beta exceedance cost used throughout WCSAC."""
+		return max(0.0, float(beta_current) - float(beta_threshold))
 
 	def select_action(self, state: Union[np.ndarray, list, tuple], evaluate: bool = False) -> np.ndarray:
 		"""Select action from current policy.
@@ -258,7 +262,7 @@ class WCSACAgent:
 		self.critic2_optimizer.step()
 
 		# ------------------ Cost critic update ------------------
-		# Fit Gaussian cost predictor to observed immediate costs (behavior actions)
+		# Fit Gaussian cost predictor to observed immediate beta exceedance costs (behavior actions)
 		pred_mean, pred_log_var = self.cost_critic(states, actions)
 		pred_var = torch.exp(pred_log_var).clamp_min(1e-6)
 		nll = 0.5 * (((costs - pred_mean).pow(2) / pred_var) + pred_log_var)
@@ -294,8 +298,8 @@ class WCSACAgent:
 		cvar_cost = cvar_per_sample.mean()
 
 		actor_loss = -(actor_weights * (min_q_new - alpha_detached * log_prob)).mean()
-		# Lagrangian penalty: push down CVaR(cost) towards threshold
-		constraint_term = float(self.lambda_cost) * (cvar_cost - float(self.beta_threshold))
+		# Lagrangian penalty: push down CVaR(beta exceedance cost) towards zero
+		constraint_term = float(self.lambda_cost) * cvar_cost
 		actor_loss = actor_loss + constraint_term
 
 		self.actor_optimizer.zero_grad(set_to_none=True)
@@ -320,10 +324,10 @@ class WCSACAgent:
 		self.soft_update(self.target_cost_critic, self.cost_critic, self.tau)
 
 		# ------------------ Update Lagrange multiplier ------------------
-		# Simple gradient-free dual ascent: lambda <- max(0, lambda + lr * (CVaR - threshold))
+		# Simple gradient-free dual ascent: lambda <- max(0, lambda + lr * CVaR(exceedance))
 		with torch.no_grad():
 			cvar_val = float(cvar_cost.detach().cpu().item()) if 'cvar_cost' in locals() else float(pred_mean.mean().cpu().item())
-			delta = self.lagrange_lr * (cvar_val - float(self.beta_threshold))
+			delta = self.lagrange_lr * cvar_val
 			self.lambda_cost = max(0.0, float(self.lambda_cost) + float(delta))
 
 		return {
@@ -381,7 +385,6 @@ class WCSACAgent:
 			"lambda_cost": float(self.lambda_cost),
 			"beta_threshold": float(self.beta_threshold),
 			"lagrange_lr": float(self.lagrange_lr),
-			"cost_mode": str(self.cost_mode),
 		}
 		torch.save(checkpoint, save_path)
 
@@ -444,6 +447,4 @@ class WCSACAgent:
 			self.beta_threshold = float(checkpoint["beta_threshold"])
 		if "lagrange_lr" in checkpoint:
 			self.lagrange_lr = float(checkpoint["lagrange_lr"])
-		if "cost_mode" in checkpoint:
-			self.cost_mode = str(checkpoint["cost_mode"])
 

@@ -485,8 +485,6 @@ def train_wcsac(
 		agent_kwargs["lagrange_lr"] = config.agent.lagrange_lr
 	if getattr(config.agent, "lambda_init", None) is not None:
 		agent_kwargs["lambda_init"] = config.agent.lambda_init
-	if getattr(config.agent, "cost_mode", None) is not None:
-		agent_kwargs["cost_mode"] = config.agent.cost_mode
 
 	agent = WCSACAgent(**agent_kwargs)
 	replay_buffer = ReplayBuffer(
@@ -585,12 +583,18 @@ def train_wcsac(
 			episode_reward_values.append(_safe_plot_float(reward))
 			episode_utilization_values.append(_safe_utilization(info.get("utilization")))
 			episode_rb_used_values.append(_safe_plot_float(info.get("rb_alloc")))
-			# Compute cost signal from environment beta.
+			# Store beta exceedance cost only: cost = max(0, beta_current - beta_threshold)
 			beta_current = _safe_plot_float(info.get("beta_current"))
+			beta_threshold = float(getattr(config.agent, "beta_threshold", 0.1))
 			if beta_current is None:
 				cost_val = 0.0
 			else:
-				cost_val = max(0.0, float(beta_current) - float(getattr(config.agent, "beta_threshold", 0.1)))
+				cost_val = max(0.0, float(beta_current) - beta_threshold)
+			if verbose:
+				training_logger.info(
+					"Stored cost signal: cost = max(0, beta_current - beta_threshold) = "
+					f"max(0, {0.0 if beta_current is None else float(beta_current):.4f} - {beta_threshold:.4f}) = {cost_val:.4f}"
+				)
 			replay_buffer.add(state, action, reward, cost_val, next_state, done)
 			episode_reward += float(reward)
 			total_steps += 1

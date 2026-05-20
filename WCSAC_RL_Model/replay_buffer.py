@@ -2,7 +2,7 @@
 
 This module provides a NumPy-backed circular replay buffer that stores
 transitions in the form:
-	(state, action, reward, next_state, done)
+	(state, action, reward, cost, next_state, done)
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ class ReplayBuffer:
 		self._states = np.zeros((capacity, state_dim), dtype=np.float32)
 		self._actions = np.zeros((capacity, action_dim), dtype=np.float32)
 		self._rewards = np.zeros((capacity, 1), dtype=np.float32)
-		# cost signal for constrained RL (e.g., beta_current or exceedance)
+		# cost signal for constrained RL: beta exceedance only
 		self._costs = np.zeros((capacity, 1), dtype=np.float32)
 		self._next_states = np.zeros((capacity, state_dim), dtype=np.float32)
 		self._dones = np.zeros((capacity, 1), dtype=np.float32)
@@ -81,6 +81,8 @@ class ReplayBuffer:
 			Continuous action, expected flat length = action_dim.
 		reward : float
 			Scalar reward for the transition.
+		cost : float
+			Beta exceedance cost, defined as max(0, beta_current - beta_threshold).
 		next_state : array-like
 			Next state, expected flat length = state_dim.
 		done : bool | float | int

@@ -86,8 +86,6 @@ class WCSACAgentConfig:
 	lagrange_lr: float = 1e-3
 	# Initial value for the Lagrange multiplier (lambda_cost)
 	lambda_init: float = 1.0
-	# Cost mode: 'beta' -> cost = beta_current, 'exceedance' -> cost = max(0, beta - threshold)
-	cost_mode: str = "beta"
 	device: Optional[str] = None
 
 
@@ -104,7 +102,7 @@ class ReplayBufferConfig:
 class TrainingConfig:
 	"""Core training-loop settings currently used by `train_wcsac`."""
 
-	max_episodes: int = 10000
+	max_episodes: int = 1000
 	max_steps_per_episode: int = 200
 	batch_size: int = 16
 	warmup_steps: int = 0
