@@ -1403,8 +1403,8 @@ def run_wcsac_custom_inference_mode() -> None:
             ax_left.set_ylabel("Profile Number")
             ax_left.set_yticks([1, 2, 3, 4, 5, 6, 7, 8])
             ax_left.set_ylim(1, 8)
-            ax_left.set_xticks(np.arange(1, len(x_vals) + 1, 5))
-            ax_left.set_xlim(left=1)
+            ax_left.set_xticks(range(1, 9))
+            ax_left.set_xlim(1, 8)
             ax_left.grid(True)
             ax_left.legend()
             
@@ -1424,8 +1424,8 @@ def run_wcsac_custom_inference_mode() -> None:
             ax_center.set_title(f"Agent RB Allocation per DTI - {svc.capitalize()}")
             ax_center.set_xlabel("Number of DTI")
             ax_center.set_ylabel("Allocated RBs")
-            ax_center.set_xticks(np.arange(1, len(x_vals) + 1, 5))
-            ax_center.set_xlim(left=1)
+            ax_center.set_xticks(range(1, 9))
+            ax_center.set_xlim(1, 8)
             ax_center.grid(True)
             ax_center.legend()
             
@@ -1448,8 +1448,8 @@ def run_wcsac_custom_inference_mode() -> None:
                 ax_right.set_title(f"Beta Current per DTI - {svc.capitalize()}")
                 ax_right.set_xlabel("Number of DTI")
                 ax_right.set_ylabel("beta_current")
-                ax_right.set_xticks(np.arange(1, len(beta_x_vals) + 1, 5))
-                ax_right.set_xlim(left=1)
+                ax_right.set_xticks(range(1, 9))
+                ax_right.set_xlim(1, 8)
                 ax_right.grid(True)
                 ax_right.legend()
             else:
