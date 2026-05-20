@@ -1247,10 +1247,9 @@ def predict_resource_blocks_from_input(
                         beta_result = model.compute_beta(traffic_dti, rb_dti)
                         beta_val = float(beta_result.beta_current)
                         
-                        # Compute reward
+                        # Compute reward using the predicted RB, not the original RB from network_input.json
                         c_capacity = network_config['c']
-                        service_rb_index = {"voip": 0, "cbr": 1, "streaming": 2}[service]
-                        rb_used = network_config['resource_blocks_per_dti'][dti_index][service_rb_index]
+                        rb_used = rb_pred
                         lambda_reward = network_config['lambda_reward']
                         
                         reward_val = model.compute_reward_current(

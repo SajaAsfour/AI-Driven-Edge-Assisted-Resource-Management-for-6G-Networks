@@ -76,16 +76,16 @@ class WCSACAgentConfig:
 	actor_lr: float = 3e-4
 	critic_lr: float = 3e-4
 	alpha_lr: float = 3e-4
-	risk_alpha: float = 0.1
+	risk_alpha: float = 0.2
 	max_grad_norm: Optional[float] = 1.0
 	target_entropy: Optional[float] = None
 	# Constraint / risk settings
 	# beta threshold for CVaR constraint (QoS degradation limit)
 	beta_threshold: float = 0.1
 	# Lagrange multiplier learning rate for updating lambda_cost
-	lagrange_lr: float = 1e-3
+	lagrange_lr: float = 1e-4
 	# Initial value for the Lagrange multiplier (lambda_cost)
-	lambda_init: float = 1.0
+	lambda_init: float = 0.5
 	device: Optional[str] = None
 
 
