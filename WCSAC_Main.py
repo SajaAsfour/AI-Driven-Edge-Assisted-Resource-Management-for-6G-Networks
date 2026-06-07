@@ -317,7 +317,6 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
     k = require_int("k", config_data.get("k"))
     c = require_int("c", config_data.get("c"))
     lambda_reward = require_number("lambda_reward", config_data.get("lambda_reward"))
-    
     if n <= 0 or m <= 0 or k <= 0:
         raise ValueError("n, m, k must be positive integers")
     if c < 0:
@@ -1102,6 +1101,7 @@ def predict_resource_blocks_from_input(
     base_checkpoint_dir: Union[str, Path] = "WCSAC_RL_Model/checkpoints",
     seed: Optional[int] = 42,
     default_risk_alpha: float = 0.1,
+    beta_threshold: float = 0.1,
     network_config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
@@ -1115,6 +1115,7 @@ def predict_resource_blocks_from_input(
         base_checkpoint_dir: Directory containing checkpoints
         seed: Random seed
         default_risk_alpha: Default risk alpha parameter
+        beta_threshold: Beta threshold used for post-processing the raw RB
         network_config: Network configuration for beta calculation
     """
     try:
@@ -1147,6 +1148,9 @@ def predict_resource_blocks_from_input(
     predicted_per_tti: Dict[str, List[List[int]]] = {}
     beta_per_dti: Dict[str, List[float]] = {}
     reward_per_dti: Dict[str, List[float]] = {}
+    raw_predicted_per_dti: Dict[str, List[int]] = {}
+    raw_beta_per_dti: Dict[str, List[float]] = {}
+    beta_sweep_per_dti: Dict[str, List[List[Dict[str, Any]]]] = {}
 
     for service in required_services:
         ckpt_path = resolve_random_final_checkpoint(base_checkpoint_dir_path, service)
@@ -1188,10 +1192,43 @@ def predict_resource_blocks_from_input(
         if not isinstance(service_traffic, list):
             raise ValueError(f"traffic_users_per_tti.{service} must be a list of DTI traffic vectors")
 
-        service_rb_per_dti: List[int] = []
-        service_rb_per_tti: List[List[int]] = []
-        service_beta_per_dti: List[float] = []
-        service_reward_per_dti: List[float] = []
+        service_raw_rb_per_dti: List[int] = []
+        service_raw_beta_per_dti: List[float] = []
+        service_selected_rb_per_dti: List[int] = []
+        service_selected_rb_per_tti: List[List[int]] = []
+        service_selected_beta_per_dti: List[float] = []
+        service_selected_reward_per_dti: List[float] = []
+        service_sweep_rows_per_dti: List[List[Dict[str, Any]]] = []
+
+        model: Optional[NetworkModel] = None
+        if network_config is not None:
+            try:
+                model = NetworkModel(
+                    n=network_config['n'],
+                    m=network_config['m'],
+                    k=network_config['k'],
+                    traffic_elements=network_config['traffic_elements'],
+                    q_thresholds_voip=network_config['q_thresholds_voip'],
+                    q_thresholds_cbr=network_config['q_thresholds_cbr'],
+                    q_thresholds_streaming=network_config['q_thresholds_streaming']
+                )
+                config_dir = BASE_DIR / "Network_Model" / "data" / "configuration"
+                service_files = {
+                    'voip': config_dir / 'D2min_VoIP_summary.json',
+                    'cbr': config_dir / 'D30sec_CBR_summary.json',
+                    'streaming': config_dir / 'D90sec_VideoStream_summary.json'
+                }
+                json_file = service_files.get(service)
+                if json_file and json_file.exists():
+                    metric_data = load_metric_matrices(json_file)
+                    model.set_metric_matrices(service, metric_data)
+                    model.set_service(service)
+                    model.reset(service)
+                else:
+                    model = None
+            except Exception as e:
+                print(f"Warning: Failed to prepare NetworkModel for {service}: {e}")
+                model = None
 
         for dti_index, traffic_dti in enumerate(service_traffic):
             if not isinstance(traffic_dti, list):
@@ -1207,71 +1244,73 @@ def predict_resource_blocks_from_input(
                     f"Predicted RB out of bounds for {service} DTI {dti_index}: {rb_pred} not in [{env.rb_min}, {env.rb_max}]"
                 )
 
-            service_rb_per_dti.append(rb_pred)
-            service_rb_per_tti.append([rb_pred] * env.n)
+            service_raw_rb_per_dti.append(rb_pred)
 
-            # Calculate beta_current if network_config is provided
+            # Calculate beta and post-process the raw RB to satisfy beta <= threshold whenever possible.
             beta_val = float("nan")
             reward_val = float("nan")
-            if network_config is not None:
+            selected_rb = rb_pred
+            selected_beta = beta_val
+            selected_reward = reward_val
+            sweep_rows: List[Dict[str, Any]] = []
+            if model is not None:
                 try:
-                    # Create RB data from predicted RB (replicate for each TTI)
                     rb_dti = [rb_pred] * env.n
-                    
-                    # Get network model
-                    model = NetworkModel(
-                        n=network_config['n'],
-                        m=network_config['m'],
-                        k=network_config['k'],
-                        traffic_elements=network_config['traffic_elements'],
-                        q_thresholds_voip=network_config['q_thresholds_voip'],
-                        q_thresholds_cbr=network_config['q_thresholds_cbr'],
-                        q_thresholds_streaming=network_config['q_thresholds_streaming']
-                    )
-                    
-                    # Load metric matrices for the service
-                    config_dir = BASE_DIR / "Network_Model" / "data" / "configuration"
-                    service_files = {
-                        'voip': config_dir / 'D2min_VoIP_summary.json',
-                        'cbr': config_dir / 'D30sec_CBR_summary.json',
-                        'streaming': config_dir / 'D90sec_VideoStream_summary.json'
-                    }
-                    json_file = service_files.get(service)
-                    if json_file and json_file.exists():
-                        metric_data = load_metric_matrices(json_file)
-                        model.set_metric_matrices(service, metric_data)
-                        model.set_service(service)
+                    beta_result = model.compute_beta(traffic_dti, rb_dti)
+                    beta_val = float(beta_result.beta_current)
+                    c_capacity = network_config['c']
+                    lambda_reward = network_config['lambda_reward']
+                    reward_val = float(model.compute_reward_current(beta_val, c_capacity, rb_pred, lambda_reward))
+
+                    rb_max = int(env.rb_max)
+                    for test_rb in range(int(env.rb_min), rb_max + 1):
+                        rb_dti_test = [test_rb] * env.n
                         model.reset(service)
-                        
-                        # Compute beta
-                        beta_result = model.compute_beta(traffic_dti, rb_dti)
-                        beta_val = float(beta_result.beta_current)
-                        
-                        # Compute reward using the predicted RB, not the original RB from network_input.json
-                        c_capacity = network_config['c']
-                        rb_used = rb_pred
-                        lambda_reward = network_config['lambda_reward']
-                        
-                        reward_val = model.compute_reward_current(
-                            beta_val, c_capacity, rb_used, lambda_reward
-                        )
-                        reward_val = float(reward_val)
+                        beta_result_test = model.compute_beta(traffic_dti, rb_dti_test)
+                        beta_test = float(beta_result_test.beta_current)
+                        sweep_rows.append({
+                            "rb": int(test_rb),
+                            "beta_current": beta_test,
+                            "dti_total_failures": float(beta_result_test.dti_total_failures),
+                            "dti_total_traffic": int(beta_result_test.dti_total_traffic),
+                        })
+
+                    safe_rows = [row for row in sweep_rows if float(row["beta_current"]) <= float(beta_threshold)]
+                    if safe_rows:
+                        # Prefer the smallest RB that still satisfies the beta threshold.
+                        selected = min(safe_rows, key=lambda row: (int(row["rb"]), float(row["beta_current"])))
+                    else:
+                        selected = min(sweep_rows, key=lambda row: (float(row["beta_current"]), int(row["rb"])))
+
+                    selected_rb = int(selected["rb"])
+                    selected_beta = float(selected["beta_current"])
+                    selected_reward = float(model.compute_reward_current(selected_beta, c_capacity, selected_rb, lambda_reward))
                 except Exception as e:
                     print(f"Warning: Failed to calculate beta for {service} DTI {dti_index}: {e}")
-            
-            service_beta_per_dti.append(beta_val)
-            service_reward_per_dti.append(reward_val)
 
-        predicted_per_dti[service] = service_rb_per_dti
-        predicted_per_tti[service] = service_rb_per_tti
-        beta_per_dti[service] = service_beta_per_dti
-        reward_per_dti[service] = service_reward_per_dti
+            service_raw_beta_per_dti.append(beta_val)
+            service_selected_rb_per_dti.append(selected_rb)
+            service_selected_rb_per_tti.append([selected_rb] * env.n)
+            service_selected_beta_per_dti.append(selected_beta)
+            service_selected_reward_per_dti.append(selected_reward)
+            service_sweep_rows_per_dti.append(sweep_rows)
+
+        predicted_per_dti[service] = service_selected_rb_per_dti
+        predicted_per_tti[service] = service_selected_rb_per_tti
+        beta_per_dti[service] = service_selected_beta_per_dti
+        reward_per_dti[service] = service_selected_reward_per_dti
+        raw_predicted_per_dti[service] = service_raw_rb_per_dti
+        raw_beta_per_dti[service] = service_raw_beta_per_dti
+        beta_sweep_per_dti[service] = service_sweep_rows_per_dti
 
     return {
         "predicted_resource_blocks_per_dti": predicted_per_dti,
         "predicted_resource_blocks_per_tti": predicted_per_tti,
         "beta_values_per_dti": beta_per_dti,
         "reward_values_per_dti": reward_per_dti,
+        "raw_predicted_resource_blocks_per_dti": raw_predicted_per_dti,
+        "raw_beta_values_per_dti": raw_beta_per_dti,
+        "beta_sweep_per_dti": beta_sweep_per_dti,
     }
 
 
@@ -1384,7 +1423,7 @@ def run_service_beta_sweep_test(
                 row_results.append({
                     "rb": rb,
                     "beta_current": float(beta_result.beta_current),
-                    "dti_total_failures": int(beta_result.dti_total_failures),
+                    "dti_total_failures": float(beta_result.dti_total_failures),
                     "dti_total_traffic": int(beta_result.dti_total_traffic),
                 })
 
@@ -1435,6 +1474,8 @@ def run_wcsac_custom_inference_mode() -> None:
     sample_input = cfg.environment.sample_input
     checkpoint_dir_cfg = Path(cfg.checkpoint.checkpoint_dir)
     base_checkpoint_dir = checkpoint_dir_cfg if checkpoint_dir_cfg.is_absolute() else BASE_DIR / checkpoint_dir_cfg
+    beta_threshold_value = getattr(cfg.agent, "beta_threshold", None)
+    beta_threshold = float(0.1 if beta_threshold_value is None else beta_threshold_value)
 
     # Load network configuration for beta calculation
     network_config = None
@@ -1458,6 +1499,7 @@ def run_wcsac_custom_inference_mode() -> None:
             base_checkpoint_dir=base_checkpoint_dir,
             seed=42,
             default_risk_alpha=float(cfg.agent.risk_alpha),
+            beta_threshold=beta_threshold,
             network_config=network_config,
         )
     except Exception as e:

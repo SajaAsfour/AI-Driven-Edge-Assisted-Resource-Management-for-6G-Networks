@@ -76,16 +76,19 @@ class WCSACAgentConfig:
 	actor_lr: float = 3e-4
 	critic_lr: float = 3e-4
 	alpha_lr: float = 3e-4
-	risk_alpha: float = 0.5
+	# risk_alpha: CVaR tail probability. 0.1 focuses on worst-case 10% of outcomes.
+	risk_alpha: float = 0.1
 	max_grad_norm: Optional[float] = 1.0
 	target_entropy: Optional[float] = None
-	# Constraint / risk settings
-	# beta threshold for CVaR constraint (QoS degradation limit)
-	beta_threshold: float = 0.1
-	# Lagrange multiplier learning rate for updating lambda_cost
-	lagrange_lr: float = 5e-5
-	# Initial value for the Lagrange multiplier (lambda_cost)
-	lambda_init: float = 0.1
+	# beta_threshold: QoS degradation limit. Matches WCSACAgent default.
+	beta_threshold: float = 0.3
+	# lagrange_lr: Lagrange multiplier growth rate when constraint is violated.
+	# Keep moderate — too high causes lambda to explode and crush the reward signal,
+	# making the agent allocate maximum RBs on every step (risk-averse collapse).
+	lagrange_lr: float = 3e-4
+	# lambda_init: warm-start the Lagrange multiplier so the constraint is active
+	# from episode 1, but keep it small so the reward signal still dominates early.
+	lambda_init: float = 0.01
 	device: Optional[str] = None
 
 

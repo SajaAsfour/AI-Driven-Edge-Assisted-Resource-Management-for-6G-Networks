@@ -583,19 +583,45 @@ def train_wcsac(
 			episode_reward_values.append(_safe_plot_float(reward))
 			episode_utilization_values.append(_safe_utilization(info.get("utilization")))
 			episode_rb_used_values.append(_safe_plot_float(info.get("rb_alloc")))
-			# Store beta exceedance cost only: cost = max(0, beta_current - beta_threshold)
+			# Store beta deviation cost: cost = abs(beta_current - beta_threshold)
 			beta_current = _safe_plot_float(info.get("beta_current"))
 			beta_threshold = float(getattr(config.agent, "beta_threshold", 0.1))
 			if beta_current is None:
 				cost_val = 0.0
 			else:
-				cost_val = max(0.0, float(beta_current) - beta_threshold)
+				cost_val = abs(float(beta_current) - beta_threshold)
+
+			# Efficiency shaping: the environment reward already contains
+			#   -beta + lambda*(C - rb)/C
+			# which penalises both QoS failure and over-allocation.
+			# For environments where beta is binary (jumps 0↔1 with no intermediate),
+			# boundary-seeking shaping is counter-productive because no allocation
+			# produces beta ∈ (0, threshold).  Instead we add a small additional
+			# efficiency bonus that reinforces using fewer RBs when beta=0, helping
+			# the agent distinguish good (low RB, beta=0) from bad (low RB, beta>0).
+			if beta_current is not None:
+				rb_alloc = info.get("rb_alloc")
+				rb_max = info.get("C", info.get("capacity", 8))
+				if rb_alloc is not None and rb_max is not None and float(rb_max) > 0:
+					# bonus ∈ [0, 0.05]: peaks when rb_alloc=rb_min, zero when rb_alloc=rb_max
+					efficiency_bonus = 0.05 * (1.0 - float(rb_alloc) / float(rb_max))
+					# Only give the bonus when constraint is satisfied; punish violation instead
+					if float(beta_current) <= beta_threshold:
+						shaped_reward = float(reward) + efficiency_bonus
+					else:
+						shaped_reward = float(reward)  # no bonus during violation
+				else:
+					shaped_reward = float(reward)
+			else:
+				shaped_reward = float(reward)
+
 			if verbose:
 				training_logger.info(
-					"Stored cost signal: cost = max(0, beta_current - beta_threshold) = "
-					f"max(0, {0.0 if beta_current is None else float(beta_current):.4f} - {beta_threshold:.4f}) = {cost_val:.4f}"
+					"Stored cost signal: cost = abs(beta_current - beta_threshold) = "
+					f"abs({0.0 if beta_current is None else float(beta_current):.4f} - {beta_threshold:.4f}) = {cost_val:.4f} | "
+					f"shaped_reward={shaped_reward:.4f}"
 				)
-			replay_buffer.add(state, action, reward, cost_val, next_state, done)
+			replay_buffer.add(state, action, shaped_reward, cost_val, next_state, done)
 			episode_reward += float(reward)
 			total_steps += 1
 

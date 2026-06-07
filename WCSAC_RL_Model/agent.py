@@ -174,8 +174,14 @@ class WCSACAgent:
 
 	@staticmethod
 	def _beta_exceedance_cost(beta_current: float, beta_threshold: float) -> float:
-		"""Return the beta exceedance cost used throughout WCSAC."""
-		return max(0.0, float(beta_current) - float(beta_threshold))
+		"""Return the beta deviation cost used throughout WCSAC.
+
+		A pure exceedance-only cost becomes zero for all beta values below the
+		threshold, which gives the constraint no preference between beta=0 and
+		beta close to the threshold. Using absolute deviation keeps the cost
+		non-zero away from the target band and avoids collapse to always-zero beta.
+		"""
+		return abs(float(beta_current) - float(beta_threshold))
 
 	def select_action(self, state: Union[np.ndarray, list, tuple], evaluate: bool = False) -> np.ndarray:
 		"""Select action from current policy.
@@ -286,20 +292,26 @@ class WCSACAgent:
 		alpha_detached = self.log_alpha.exp().detach()
 		actor_weights = cvar_weights(min_q_new.detach(), self.risk_alpha)
 
-		# Compute CVaR of cost under current policy (analytic for Gaussian)
+		# Compute upper-tail CVaR of cost under current policy (analytic Gaussian).
+		# CVaR_α = mean + std * φ(Φ⁻¹(α)) / α  — denominator must be α, not (1-α).
 		cost_mean_pi, cost_log_var_pi = self.cost_critic(states, new_actions)
 		cost_std_pi = torch.exp(0.5 * cost_log_var_pi)
-		# standard normal stats
 		std_normal = Normal(torch.tensor(0.0, device=self.device), torch.tensor(1.0, device=self.device))
 		inv_phi = std_normal.icdf(torch.tensor(self.risk_alpha, device=self.device))
 		pdf_at_inv = torch.exp(std_normal.log_prob(inv_phi))
-		kappa = (pdf_at_inv / (1.0 - float(self.risk_alpha))).clamp_min(0.0)
-		cvar_per_sample = cost_mean_pi + kappa * cost_std_pi
+		kappa = (pdf_at_inv / float(self.risk_alpha)).clamp_min(0.0)  # FIXED: was (1 - risk_alpha)
+		uncertainty_scale = 0.25
+		cvar_per_sample = cost_mean_pi + uncertainty_scale * kappa * cost_std_pi
 		cvar_cost = cvar_per_sample.mean()
 
 		actor_loss = -(actor_weights * (min_q_new - alpha_detached * log_prob)).mean()
-		# Lagrangian penalty: push down CVaR(beta exceedance cost) towards zero
-		constraint_term = float(self.lambda_cost) * cvar_cost
+		# Lagrangian penalty: push CVaR(beta deviation) to zero.
+		# cost in replay buffer = abs(beta - beta_threshold), so budget = 0.
+		cost_budget = 0.0
+
+		constraint_violation = torch.relu(cvar_cost - cost_budget)
+		constraint_term = float(self.lambda_cost) * constraint_violation
+
 		actor_loss = actor_loss + constraint_term
 
 		self.actor_optimizer.zero_grad(set_to_none=True)
@@ -320,15 +332,19 @@ class WCSACAgent:
 
 		self.soft_update(self.target_critic1, self.critic1, self.tau)
 		self.soft_update(self.target_critic2, self.critic2, self.tau)
-		# soft-update cost critic target
 		self.soft_update(self.target_cost_critic, self.cost_critic, self.tau)
 
 		# ------------------ Update Lagrange multiplier ------------------
-		# Simple gradient-free dual ascent: lambda <- max(0, lambda + lr * CVaR(exceedance))
+		# Dual ascent: lambda grows when constraint violated (CVaR > 0), shrinks otherwise.
+		# Cap lambda at 5.0: if uncapped, a large lambda makes the constraint term
+		# completely dominate the reward, collapsing the policy to always allocate
+		# maximum RBs (risk-averse collapse, as observed when lambda_lr was 1e-3).
 		with torch.no_grad():
-			cvar_val = float(cvar_cost.detach().cpu().item()) if 'cvar_cost' in locals() else float(pred_mean.mean().cpu().item())
-			delta = self.lagrange_lr * cvar_val
-			self.lambda_cost = max(0.0, float(self.lambda_cost) + float(delta))
+			cvar_val = float(cvar_cost.detach().cpu().item())
+			cost_budget = 0.0
+			delta = self.lagrange_lr * (cvar_val - cost_budget)
+			lambda_max = 5.0
+			self.lambda_cost = float(np.clip(float(self.lambda_cost) + float(delta), 0.0, lambda_max))
 
 		return {
 			"critic1_loss": float(critic1_loss.item()),

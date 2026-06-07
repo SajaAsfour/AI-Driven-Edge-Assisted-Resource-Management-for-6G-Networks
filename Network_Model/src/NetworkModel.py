@@ -27,7 +27,7 @@ class TTIEvaluation:
     metric_evaluations: List[MetricEvaluation]
     combined_binary: int  
     combined_status: str  
-    failed_users: int  
+    failed_users: float  
 
 
 @dataclass
@@ -40,7 +40,7 @@ class BetaResult:
     tti_evaluations: List[TTIEvaluation]
     
     # DTI-level statistics
-    dti_total_failures: int
+    dti_total_failures: float
     dti_total_traffic: int
     
     # Beta values
@@ -48,7 +48,7 @@ class BetaResult:
     beta_cumulative: float
     
     # Cumulative counters
-    cumulative_failures: int
+    cumulative_failures: float
     cumulative_traffic: int
     
     # Metrics used
@@ -123,14 +123,14 @@ class NetworkModel:
     _dti_count: Dict[str, int] = field(default_factory=dict, init=False)
     
     # Beta tracking
-    _cumulative_failures: Dict[str, int] = field(default_factory=dict, init=False)
+    _cumulative_failures: Dict[str, float] = field(default_factory=dict, init=False)
     _cumulative_traffic_beta: Dict[str, int] = field(default_factory=dict, init=False)
 
     def __post_init__(self):
         """Initialize tracking structures."""
         self._cumulative_traffic = {'voip': [], 'cbr': [], 'streaming': []}
         self._dti_count = {'voip': 0, 'cbr': 0, 'streaming': 0}
-        self._cumulative_failures = {'voip': 0, 'cbr': 0, 'streaming': 0}
+        self._cumulative_failures = {'voip': 0.0, 'cbr': 0.0, 'streaming': 0.0}
         self._cumulative_traffic_beta = {'voip': 0, 'cbr': 0, 'streaming': 0}
 
     # SETTERS AND GETTERS
@@ -177,12 +177,12 @@ class NetworkModel:
         if traffic_type is None:
             self._cumulative_traffic = {'voip': [], 'cbr': [], 'streaming': []}
             self._dti_count = {'voip': 0, 'cbr': 0, 'streaming': 0}
-            self._cumulative_failures = {'voip': 0, 'cbr': 0, 'streaming': 0}
+            self._cumulative_failures = {'voip': 0.0, 'cbr': 0.0, 'streaming': 0.0}
             self._cumulative_traffic_beta = {'voip': 0, 'cbr': 0, 'streaming': 0}
         elif traffic_type in ['voip', 'cbr', 'streaming']:
             self._cumulative_traffic[traffic_type] = []
             self._dti_count[traffic_type] = 0
-            self._cumulative_failures[traffic_type] = 0
+            self._cumulative_failures[traffic_type] = 0.0
             self._cumulative_traffic_beta[traffic_type] = 0
         else:
             raise ValueError(f"Unknown traffic type: {traffic_type}")
@@ -413,7 +413,14 @@ class NetworkModel:
         
         combined_binary = 1 if any(m.binary == 1 for m in metric_evaluations) else 0
         combined_status = "FAIL" if combined_binary == 1 else "PASS"
-        failed_users = traffic if combined_binary == 1 else 0
+        # Avoid all-or-nothing beta collapse: count the failure severity by the
+        # fraction of metrics that fail on this TTI. This keeps beta continuous
+        # enough to distinguish "barely failing" from "completely safe" cases.
+        failed_metric_count = sum(int(m.binary) for m in metric_evaluations)
+        failure_ratio = failed_metric_count / float(len(metric_evaluations)) if metric_evaluations else 0.0
+        failed_users = float(traffic) * failure_ratio
+        if combined_binary == 1 and traffic > 0 and failed_users <= 0.0:
+            failed_users = 1.0
         
         return TTIEvaluation(
             tti_index=tti_index,
@@ -434,7 +441,7 @@ class NetworkModel:
         num_ttis = len(traffic_data)
         
         tti_evaluations = []
-        dti_total_failures = 0
+        dti_total_failures = 0.0
         dti_total_traffic = 0
         
         for tti_idx in range(num_ttis):
@@ -452,10 +459,10 @@ class NetworkModel:
         
         beta_current = dti_total_failures / dti_total_traffic if dti_total_traffic > 0 else 0
         
-        self._cumulative_failures[service] += dti_total_failures
+        self._cumulative_failures[service] += float(dti_total_failures)
         self._cumulative_traffic_beta[service] += dti_total_traffic
         
-        cumulative_failures = self._cumulative_failures[service]
+        cumulative_failures = float(self._cumulative_failures[service])
         cumulative_traffic = self._cumulative_traffic_beta[service]
         beta_cumulative = cumulative_failures / cumulative_traffic if cumulative_traffic > 0 else 0
         
