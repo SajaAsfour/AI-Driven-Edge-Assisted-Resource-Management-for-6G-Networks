@@ -31,16 +31,6 @@ def get_default_sample_input() -> Dict[str, Any]:
 				[65, 70, 65, 70, 65, 70, 65, 70],
 				[75, 80, 75, 80, 75, 80, 75, 80],
 			],
-			"streaming": [
-				[5, 10, 5, 10, 5, 10, 5, 10],
-				[15, 20, 15, 20, 15, 20, 15, 20],
-				[25, 30, 25, 30, 25, 30, 25, 30],
-				[35, 40, 35, 40, 35, 40, 35, 40],
-				[45, 50, 45, 50, 45, 50, 45, 50],
-				[55, 60, 55, 60, 55, 60, 55, 60],
-				[65, 70, 65, 70, 65, 70, 65, 70],
-				[75, 80, 75, 80, 75, 80, 75, 80],
-			],
 		}
 	}
 
@@ -105,7 +95,7 @@ class ReplayBufferConfig:
 class TrainingConfig:
 	"""Core training-loop settings currently used by `train_wcsac`."""
 
-	max_episodes: int = 1000
+	max_episodes: int = 5000
 	max_steps_per_episode: int = 200
 	batch_size: int = 16
 	warmup_steps: int = 0

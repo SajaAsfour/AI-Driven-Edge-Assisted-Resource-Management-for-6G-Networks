@@ -187,7 +187,7 @@ def main() -> None:
 	parser.add_argument(
 		"--service",
 		default=None,
-		help="Service name used in output filenames (e.g., voip, cbr, streaming)",
+		help="Service name used in output filenames (e.g., voip, cbr)",
 	)
 
 	args = parser.parse_args()

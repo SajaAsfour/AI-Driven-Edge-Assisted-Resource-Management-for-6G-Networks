@@ -160,7 +160,7 @@ def save_prediction_beta_plot(
         dti_indices: List of DTI indices
         beta_values: List of beta_current values
         output_dir: Directory to save the plot
-        service: Service name (voip, cbr, streaming)
+        service: Service name (voip, cbr)
         model_type: Model type (wcsac, sac)
         
     Returns:
@@ -313,11 +313,11 @@ def validate_resource_blocks(mat: Any, m: int) -> List[List[int]]:
     for dti, row in enumerate(mat):
         if not isinstance(row, list):
             raise ValueError(f"resource_blocks_per_dti[{dti}] must be a list")
-        if len(row) != 3:
-            raise ValueError(f"resource_blocks_per_dti[{dti}] must have 3 values")
+        if len(row) < 2:
+            raise ValueError(f"resource_blocks_per_dti[{dti}] must have at least 2 values")
 
         rb_row: List[int] = []
-        for svc_name, val in zip(["VoIP", "CBR", "Streaming"], row):
+        for svc_name, val in zip(["VoIP", "CBR"], row):
             if not isinstance(val, int):
                 raise ValueError(f"resource_blocks_per_dti[{dti}] {svc_name} must be int")
             if val < 0:
@@ -333,21 +333,17 @@ def compute_rb_per_tti_from_dti(resource_blocks_per_dti: List[List[int]],
                                  m: int, n: int) -> Dict[str, List[List[int]]]:
     voip_rb_tti = []
     cbr_rb_tti = []
-    streaming_rb_tti = []
     
     for dti_idx in range(m):
         voip_rb = resource_blocks_per_dti[dti_idx][0]
         cbr_rb = resource_blocks_per_dti[dti_idx][1]
-        streaming_rb = resource_blocks_per_dti[dti_idx][2]
         
         voip_rb_tti.append([voip_rb] * n)
         cbr_rb_tti.append([cbr_rb] * n)
-        streaming_rb_tti.append([streaming_rb] * n)
     
     return {
         'voip': voip_rb_tti,
         'cbr': cbr_rb_tti,
-        'streaming': streaming_rb_tti
     }
 
 
@@ -400,7 +396,6 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
     users = require_dict("traffic_users_per_tti", input_data.get("traffic_users_per_tti"))
     voip_users = validate_users_matrix("voip", users.get("voip"), m=m, n=n)
     cbr_users = validate_users_matrix("cbr", users.get("cbr"), m=m, n=n)
-    streaming_users = validate_users_matrix("streaming", users.get("streaming"), m=m, n=n)
 
     return {
         'n': n, 'm': m, 'k': k, 'c': c, 'lambda_reward': lambda_reward,
@@ -413,7 +408,6 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
         'traffic_users_per_tti': {
             'voip': voip_users,
             'cbr': cbr_users,
-            'streaming': streaming_users,
         }
     }
 
@@ -478,24 +472,21 @@ def display_menu():
     print("Please select a service:")
     print("  1. VoIP")
     print("  2. CBR")
-    print("  3. Video Streaming")
-    print("  4. Exit")
+    print("  3. Exit")
     print("="*50)
 
 
 def get_user_choice() -> str:
     while True:
-        choice = input("Enter your choice (1-4): ").strip()
+        choice = input("Enter your choice (1-3): ").strip()
         if choice == '1':
             return 'voip'
         elif choice == '2':
             return 'cbr'
         elif choice == '3':
-            return 'streaming'
-        elif choice == '4':
             return 'exit'
         else:
-            print("Invalid choice. Please enter 1, 2, 3, or 4.")
+            print("Invalid choice. Please enter 1, 2, or 3.")
 
 
 # DTI LOGGING
@@ -574,17 +565,14 @@ def choose_service_for_rl() -> Optional[str]:
     print("\nSelect RL service:")
     print("  1. VoIP")
     print("  2. CBR")
-    print("  3. Video Streaming")
-    print("  4. Back to Main Menu")
+    print("  3. Back to Main Menu")
     while True:
-        choice = input("Enter service choice (1-4): ").strip()
+        choice = input("Enter service choice (1-3): ").strip()
         if choice == "1":
             return "voip"
         if choice == "2":
             return "cbr"
         if choice == "3":
-            return "streaming"
-        if choice == "4":
             return None
         print("Invalid choice, please try again.")
 
@@ -593,19 +581,16 @@ def choose_service_for_evaluation() -> Optional[str]:
     print("\nSelect RL service:")
     print("  1. VoIP")
     print("  2. CBR")
-    print("  3. Video Streaming")
-    print("  4. Back to Main Menu")
+    print("  3. Back to Main Menu")
     while True:
-        choice = input("Enter service choice (1-4): ").strip()
+        choice = input("Enter service choice (1-3): ").strip()
         if choice == "1":
             return "voip"
         if choice == "2":
             return "cbr"
         if choice == "3":
-            return "streaming"
-        if choice == "4":
             return None
-        print("Invalid choice. Please enter 1, 2, 3, or 4.")
+        print("Invalid choice. Please enter 1, 2, or 3.")
 
 
 def choose_traffic_profile_mode_for_rl() -> str:
@@ -752,7 +737,7 @@ def choose_checkpoint_for_evaluation(checkpoint_dir: Path) -> Optional[Path]:
 
 
 def _infer_service_from_checkpoint_name(checkpoint_path: Path) -> Optional[str]:
-    match = re.match(r"^sac_(voip|cbr|streaming)_(?:episode_\d+|final)\.pt$", checkpoint_path.name)
+    match = re.match(r"^sac_(voip|cbr)_(?:episode_\d+|final)\.pt$", checkpoint_path.name)
     if not match:
         return None
     return str(match.group(1)).strip().lower()
@@ -771,20 +756,17 @@ def run_networkmodel(config: Dict[str, Any], config_dir: Path, logger: logging.L
 
     service_files = {
         'voip': config_dir / 'D2min_VoIP_summary.json',
-        'cbr': config_dir / 'D30sec_CBR_summary.json',
-        'streaming': config_dir / 'D90sec_VideoStream_summary.json'
+        'cbr': config_dir / 'D30sec_CBR_summary.json'
     }
 
     service_names = {
         'voip': 'VoIP',
-        'cbr': 'CBR',
-        'streaming': 'Video Streaming'
+        'cbr': 'CBR'
     }
 
     service_rb_index = {
         'voip': 0,
         'cbr': 1,
-        'streaming': 2,
     }
 
     while True:
@@ -1259,7 +1241,7 @@ def predict_resource_blocks_from_input(
     if not isinstance(traffic_all, dict):
         raise ValueError("'traffic_users_per_tti' must be a dictionary")
 
-    required_services = ["voip", "cbr", "streaming"]
+    required_services = ["voip", "cbr"]
     missing_services = [s for s in required_services if s not in traffic_all]
     if missing_services:
         raise ValueError(f"Missing service keys in traffic_users_per_tti: {missing_services}")
@@ -1350,8 +1332,7 @@ def predict_resource_blocks_from_input(
                     config_dir = BASE_DIR / "Network_Model" / "data" / "configuration"
                     service_files = {
                         'voip': config_dir / 'D2min_VoIP_summary.json',
-                        'cbr': config_dir / 'D30sec_CBR_summary.json',
-                        'streaming': config_dir / 'D90sec_VideoStream_summary.json'
+                        'cbr': config_dir / 'D30sec_CBR_summary.json'
                     }
                     json_file = service_files.get(service)
                     if json_file and json_file.exists():
@@ -1366,7 +1347,7 @@ def predict_resource_blocks_from_input(
                         
                         # Compute reward
                         c_capacity = network_config['c']
-                        service_rb_index = {"voip": 0, "cbr": 1, "streaming": 2}[service]
+                        service_rb_index = {"voip": 0, "cbr": 1}[service]
                         rb_used = network_config['resource_blocks_per_dti'][dti_index][service_rb_index]
                         lambda_reward = network_config['lambda_reward']
                         
@@ -1467,7 +1448,7 @@ def run_sac_custom_inference_mode() -> None:
     # Generate and save sample-input plots (only for custom/sample input simulation mode)
     try:
         traffic_users = sample_input.get("traffic_users_per_tti", {})
-        services = ["voip", "cbr", "streaming"]
+        services = ["voip", "cbr"]
         default_profiles = list(get_default_profiles().values())
         model_type = "sac"
 

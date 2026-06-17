@@ -30,7 +30,7 @@ Number = Union[int, float]
 class NetworkSACEnv:
 	"""
 	This wrapper is intentionally lightweight:
-	- one service at a time (`voip`, `cbr`, or `streaming`)
+	- one service at a time (`voip` or `cbr`)
 	- single continuous SAC action mapped to an integer RB allocation
 
 	Notes on integration with current simulation:
@@ -43,16 +43,11 @@ class NetworkSACEnv:
 	SERVICE_FILE_NAMES: Dict[str, str] = {
 		"voip": "D2min_VoIP_summary.json",
 		"cbr": "D30sec_CBR_summary.json",
-		"streaming": "D90sec_VideoStream_summary.json",
 	}
 
 	SERVICE_ALIASES: Dict[str, str] = {
 		"voip": "voip",
 		"cbr": "cbr",
-		"streaming": "streaming",
-		"videostream": "streaming",
-		"video_stream": "streaming",
-		"video-stream": "streaming",
 	}
 
 	def __init__(
@@ -75,7 +70,7 @@ class NetworkSACEnv:
 		Initialize the RL wrapper.
 
 		Args:
-			service: Target service (`voip`, `cbr`, `streaming`, `videostream`).
+			service: Target service (`voip`, `cbr`).
 			config_path: Optional path to network config JSON.
 			input_path: Optional path to network input JSON.
 			metric_file: Optional path to per-service metric summary JSON.
@@ -661,13 +656,13 @@ class NetworkSACEnv:
 
 	@classmethod
 	def _normalize_service(cls, service: str) -> str:
-		"""Normalize service alias to one of: voip, cbr, streaming."""
+		"""Normalize service alias to one of: voip, cbr."""
 		if not isinstance(service, str):
 			raise ValueError("service must be a string")
 		key = service.strip().lower()
 		if key not in cls.SERVICE_ALIASES:
 			raise ValueError(
-				"service must be one of: voip, cbr, streaming, videostream"
+				"service must be one of: voip, cbr"
 			)
 		return cls.SERVICE_ALIASES[key]
 
