@@ -75,6 +75,7 @@ class MultiTrafficPredictionConfig:
 	input_2: TrafficInputSelection
 	model_name: Optional[str] = "wcsac"
 	capacity: int = 8
+	beta_threshold: float = 0.1
 	seed: int = 42
 	output_dir: Path = field(default_factory=lambda: WORKSPACE_ROOT / "WCSAC_RL_Model" / "checkpoints" / "multi_traffic")
 	checkpoint_base_dir: Optional[Path] = None
@@ -89,6 +90,7 @@ class MultiTrafficPredictionConfig:
 			input_2=self.input_2.normalized(),
 			model_name=model_key,
 			capacity=int(self.capacity),
+			beta_threshold=float(self.beta_threshold),
 			seed=int(self.seed),
 			output_dir=Path(self.output_dir).expanduser(),
 			checkpoint_base_dir=base_dir,

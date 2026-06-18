@@ -49,6 +49,17 @@ def _prompt_profile(prompt_label: str) -> str:
 	return _prompt_choice(prompt_label, profiles)
 
 
+def _get_default_beta_threshold() -> float:
+	try:
+		from WCSAC_RL_Model.config import get_default_config
+
+		cfg = get_default_config()
+		beta_threshold_value = getattr(cfg.agent, "beta_threshold", None)
+		return float(0.1 if beta_threshold_value is None else beta_threshold_value)
+	except Exception:
+		return 0.1
+
+
 def main() -> None:
 	from multi_slice.multi_traffic_config import AVAILABLE_SERVICES, MultiTrafficPredictionConfig, TrafficInputSelection
 	from multi_slice.multi_traffic_predictor import MultiTrafficPredictor
@@ -79,12 +90,14 @@ def main() -> None:
 		output_dir = MULTI_SLICE_ROOT / "multi_traffic"
 		log_path = output_dir / f"{model_name}_multi_traffic_prediction.log"
 		logger = configure_logger(log_path)
+		beta_threshold = _get_default_beta_threshold()
 
 		config = MultiTrafficPredictionConfig(
 			input_1=TrafficInputSelection(service=service_1, profile_name=profile_1, label="input_1"),
 			input_2=TrafficInputSelection(service=service_2, profile_name=profile_2, label="input_2"),
 			model_name=model_name,
 			capacity=8,
+			beta_threshold=beta_threshold,
 			seed=42,
 			output_dir=output_dir,
 		)
@@ -93,6 +106,7 @@ def main() -> None:
 			print(f"Starting multi-traffic prediction mode for {model_label}")
 			print(f"Input 1: service={service_1}, profile={profile_1}")
 			print(f"Input 2: service={service_2}, profile={profile_2}")
+			print(f"Beta threshold: {beta_threshold}")
 
 			runner = MultiTrafficPredictor(config=config, logger=logger)
 			result = runner.run()
