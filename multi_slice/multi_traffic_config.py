@@ -4,22 +4,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from SAC_RL_Model.config import get_default_config
-
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 WORKSPACE_ROOT = PACKAGE_ROOT.parent
 AVAILABLE_SERVICES = ("voip", "cbr")
-AVAILABLE_MODELS = ("sac", "wcsac")
+AVAILABLE_MODELS = ("wcsac",)
 
 
 def resolve_project_root() -> Path:
 	return WORKSPACE_ROOT
 
 
-def normalize_model_name(model_name: str | None) -> str | None:
+def normalize_model_name(model_name: str | None) -> str:
 	if model_name is None:
-		return None
+		return "wcsac"
 	if not isinstance(model_name, str):
 		raise ValueError("model_name must be a string or None")
 	model_key = model_name.strip().lower()
@@ -29,15 +27,8 @@ def normalize_model_name(model_name: str | None) -> str | None:
 
 
 def resolve_default_checkpoint_base_dir(model_name: str | None = None) -> Path:
-	model_key = normalize_model_name(model_name)
-	if model_key == "wcsac":
-		return WORKSPACE_ROOT / "WCSAC_RL_Model" / "checkpoints"
-
-	cfg = get_default_config()
-	checkpoint_dir = Path(cfg.checkpoint.checkpoint_dir)
-	if checkpoint_dir.is_absolute():
-		return checkpoint_dir
-	return WORKSPACE_ROOT / checkpoint_dir
+	normalize_model_name(model_name)
+	return WORKSPACE_ROOT / "WCSAC_RL_Model" / "checkpoints"
 
 
 def normalize_service_name(service: str) -> str:
@@ -51,8 +42,7 @@ def normalize_service_name(service: str) -> str:
 
 def resolve_final_checkpoint_path(base_checkpoint_dir: Path, service: str, model_name: str | None = None) -> Path:
 	service_key = normalize_service_name(service)
-	model_key = normalize_model_name(model_name) or "sac"
-	checkpoint_prefix = "wcsac" if model_key == "wcsac" else "sac"
+	checkpoint_prefix = normalize_model_name(model_name)
 	checkpoint_path = base_checkpoint_dir / service_key / "random" / f"{checkpoint_prefix}_{service_key}_final.pt"
 	if not checkpoint_path.exists():
 		raise FileNotFoundError(
@@ -63,7 +53,7 @@ def resolve_final_checkpoint_path(base_checkpoint_dir: Path, service: str, model
 
 @dataclass(slots=True)
 class TrafficInputSelection:
-	"""User-selected traffic input for one SAC agent."""
+	"""User-selected traffic input for one WCSAC agent."""
 
 	service: str
 	profile_name: str
@@ -79,14 +69,14 @@ class TrafficInputSelection:
 
 @dataclass(slots=True)
 class MultiTrafficPredictionConfig:
-	"""Configuration for a two-input multi-traffic prediction run."""
+	"""Configuration for a two-input WCSAC multi-traffic prediction run."""
 
 	input_1: TrafficInputSelection
 	input_2: TrafficInputSelection
-	model_name: Optional[str] = None
+	model_name: Optional[str] = "wcsac"
 	capacity: int = 8
 	seed: int = 42
-	output_dir: Path = field(default_factory=lambda: PACKAGE_ROOT / "SAC_RL_Model" / "checkpoints" / "multi_traffic")
+	output_dir: Path = field(default_factory=lambda: WORKSPACE_ROOT / "WCSAC_RL_Model" / "checkpoints" / "multi_traffic")
 	checkpoint_base_dir: Optional[Path] = None
 
 	def normalized(self) -> "MultiTrafficPredictionConfig":

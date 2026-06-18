@@ -25,7 +25,7 @@ from multi_slice.multi_traffic_config import (
 )
 
 if TYPE_CHECKING:
-	from SAC_RL_Model.env_wrapper import NetworkSACEnv
+	from WCSAC_RL_Model.env_wrapper import NetworkWCSACEnv
 
 def _json_safe(value: Any) -> Any:
 	if isinstance(value, np.ndarray):
@@ -55,7 +55,7 @@ def _format_service_label(selection: TrafficInputSelection) -> str:
 
 
 def evaluate_allocation(
-	env: NetworkSACEnv,
+	env: NetworkWCSACEnv,
 	traffic_dti: Sequence[int],
 	allocated_rb: int,
 ) -> Dict[str, Any]:
@@ -121,7 +121,7 @@ class MultiTrafficPredictionResult:
 
 
 class MultiTrafficPredictor:
-	"""Run two trained RL agents in evaluation-only mode and allocate RBs globally."""
+	"""Run two trained WCSAC agents in evaluation-only mode and allocate RBs globally."""
 
 	def __init__(self, config: MultiTrafficPredictionConfig, logger: Optional[logging.Logger] = None) -> None:
 		self.config = config.normalized()
@@ -135,16 +135,10 @@ class MultiTrafficPredictor:
 			raise ValueError("capacity must be > 0")
 
 	def _load_model_components(self) -> tuple[Any, Any]:
-		if self.config.model_name == "wcsac":
-			from WCSAC_RL_Model.agent import WCSACAgent
-			from WCSAC_RL_Model.env_wrapper import NetworkWCSACEnv
+		from WCSAC_RL_Model.agent import WCSACAgent
+		from WCSAC_RL_Model.env_wrapper import NetworkWCSACEnv
 
-			return NetworkWCSACEnv, WCSACAgent
-
-		from SAC_RL_Model.agent import SACAgent
-		from SAC_RL_Model.env_wrapper import NetworkSACEnv
-
-		return NetworkSACEnv, SACAgent
+		return NetworkWCSACEnv, WCSACAgent
 
 	def _build_runtime_input(self, selection: TrafficInputSelection, label: str, seed_offset: int) -> TrafficInputRuntime:
 		service = normalize_service_name(selection.service)
@@ -268,7 +262,7 @@ class MultiTrafficPredictor:
 			config={
 				"capacity": self.config.capacity,
 				"seed": self.config.seed,
-				"model_name": self.config.model_name or "sac",
+				"model_name": self.config.model_name or "wcsac",
 			},
 			inputs=[
 				{
@@ -287,8 +281,8 @@ class MultiTrafficPredictor:
 				},
 			],
 			steps=step_logs,
-			output_path=self.output_dir / (f"{self.config.model_name}_multi_traffic_prediction_output.json" if self.config.model_name else "multi_traffic_prediction_output.json"),
-			log_path=self.output_dir / (f"{self.config.model_name}_multi_traffic_prediction.log" if self.config.model_name else "multi_traffic_prediction.log"),
+			output_path=self.output_dir / "wcsac_multi_traffic_prediction_output.json",
+			log_path=self.output_dir / "wcsac_multi_traffic_prediction.log",
 		)
 
 		result.output_path.write_text(json.dumps(_json_safe(result.to_dict()), indent=2), encoding="utf-8")

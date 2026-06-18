@@ -56,19 +56,15 @@ def main() -> None:
 	while True:
 		print("====================================")
 		print("Select RL Model:")
-		print("  1. SAC")
-		print("  2. WCSAC")
-		print("  3. Exit")
+		print("  1. WCSAC")
+		print("  2. Exit")
 		print("====================================")
 
-		model_choice = input("Select 1-3: ").strip()
+		model_choice = input("Select 1-2: ").strip()
 		if model_choice == "1":
-			model_name = "sac"
-			model_label = "SAC"
-		elif model_choice == "2":
 			model_name = "wcsac"
 			model_label = "WCSAC"
-		elif model_choice == "3":
+		elif model_choice == "2":
 			print("Exiting.")
 			return
 		else:
