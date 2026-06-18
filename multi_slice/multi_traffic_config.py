@@ -9,7 +9,7 @@ from SAC_RL_Model.config import get_default_config
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 WORKSPACE_ROOT = PACKAGE_ROOT.parent
-AVAILABLE_SERVICES = ("voip", "cbr", "streaming")
+AVAILABLE_SERVICES = ("voip", "cbr")
 AVAILABLE_MODELS = ("sac", "wcsac")
 
 
