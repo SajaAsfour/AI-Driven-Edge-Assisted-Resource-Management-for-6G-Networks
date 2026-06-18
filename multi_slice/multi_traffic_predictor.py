@@ -130,7 +130,7 @@ def _select_threshold_safe_request(
 	traffic_dti: Sequence[int],
 	raw_requested_rb: int,
 	beta_threshold: float,
-) -> tuple[int, Dict[str, Any], Dict[str, Any], str, bool]:
+) -> tuple[int, Dict[str, Any], Dict[str, Any], str]:
 	"""Mirror WCSAC main.py choice 4: raw prediction -> RB sweep -> threshold-safe request."""
 	rb_min, rb_max = _get_rb_bounds(sweep_env, int(getattr(sweep_env, "c", 8)))
 	raw_request = int(raw_requested_rb)
@@ -165,8 +165,7 @@ def _select_threshold_safe_request(
 
 	selected_rb = int(selected["rb"])
 	selected_eval = selected["eval"]
-	adjusted = selected_rb != int(raw_requested_rb)
-	return selected_rb, selected_eval, raw_eval, reason, adjusted
+	return selected_rb, selected_eval, raw_eval, reason
 
 
 @dataclass(slots=True)
@@ -192,10 +191,6 @@ class TrafficStepLog:
 	requested_rb_2: int
 	request_beta_current_1: float
 	request_beta_current_2: float
-	request_beta_threshold_met_1: bool
-	request_beta_threshold_met_2: bool
-	request_threshold_adjusted_1: bool
-	request_threshold_adjusted_2: bool
 	request_selection_reason_1: str
 	request_selection_reason_2: str
 	total_requested_rb: int
@@ -205,8 +200,6 @@ class TrafficStepLog:
 	beta_threshold: float
 	beta_current_1: float
 	beta_current_2: float
-	beta_threshold_met_1: bool
-	beta_threshold_met_2: bool
 	reward_1: float
 	reward_2: float
 
@@ -335,13 +328,13 @@ class MultiTrafficPredictor:
 				dti_index=dti_index,
 			))
 
-			requested_1, request_eval_1, raw_eval_1, reason_1, request_adjusted_1 = _select_threshold_safe_request(
+			requested_1, request_eval_1, raw_eval_1, reason_1 = _select_threshold_safe_request(
 				sweep_env=sweep_env_1,
 				traffic_dti=traffic_1,
 				raw_requested_rb=raw_requested_1,
 				beta_threshold=self.config.beta_threshold,
 			)
-			requested_2, request_eval_2, raw_eval_2, reason_2, request_adjusted_2 = _select_threshold_safe_request(
+			requested_2, request_eval_2, raw_eval_2, reason_2 = _select_threshold_safe_request(
 				sweep_env=sweep_env_2,
 				traffic_dti=traffic_2,
 				raw_requested_rb=raw_requested_2,
@@ -376,10 +369,6 @@ class MultiTrafficPredictor:
 				requested_rb_2=int(requested_2),
 				request_beta_current_1=float(request_eval_1["beta_current"]),
 				request_beta_current_2=float(request_eval_2["beta_current"]),
-				request_beta_threshold_met_1=float(request_eval_1["beta_current"]) <= threshold,
-				request_beta_threshold_met_2=float(request_eval_2["beta_current"]) <= threshold,
-				request_threshold_adjusted_1=bool(request_adjusted_1),
-				request_threshold_adjusted_2=bool(request_adjusted_2),
 				request_selection_reason_1=reason_1,
 				request_selection_reason_2=reason_2,
 				total_requested_rb=allocation.total_requested,
@@ -389,15 +378,13 @@ class MultiTrafficPredictor:
 				beta_threshold=threshold,
 				beta_current_1=beta_1,
 				beta_current_2=beta_2,
-				beta_threshold_met_1=beta_1 <= threshold,
-				beta_threshold_met_2=beta_2 <= threshold,
 				reward_1=float(eval_1["reward_current"]),
 				reward_2=float(eval_2["reward_current"]),
 			)
 			step_logs.append(step_log)
 
 			self.logger.info(
-				"DTI %s | request_1=%s request_2=%s total=%s | request_beta_1=%.4f request_beta_2=%.4f threshold=%.4f request_met_1=%s request_met_2=%s request_adjusted_1=%s request_adjusted_2=%s | alloc_1=%s alloc_2=%s scaled=%s | final_beta_1=%.4f final_beta_2=%.4f final_met_1=%s final_met_2=%s | reward_1=%.4f reward_2=%.4f",
+				"DTI %s | request_1=%s request_2=%s total=%s | request_beta_1=%.4f request_beta_2=%.4f threshold=%.4f | alloc_1=%s alloc_2=%s scaled=%s | final_beta_1=%.4f final_beta_2=%.4f | reward_1=%.4f reward_2=%.4f",
 				display_dti,
 				requested_1,
 				requested_2,
@@ -405,17 +392,11 @@ class MultiTrafficPredictor:
 				step_log.request_beta_current_1,
 				step_log.request_beta_current_2,
 				threshold,
-				step_log.request_beta_threshold_met_1,
-				step_log.request_beta_threshold_met_2,
-				step_log.request_threshold_adjusted_1,
-				step_log.request_threshold_adjusted_2,
 				allocation.allocation_1,
 				allocation.allocation_2,
 				allocation.scaling_applied,
 				step_log.beta_current_1,
 				step_log.beta_current_2,
-				step_log.beta_threshold_met_1,
-				step_log.beta_threshold_met_2,
 				step_log.reward_1,
 				step_log.reward_2,
 			)
