@@ -92,13 +92,11 @@ class NetworkModel:
     # Q-thresholds per service
     q_thresholds_voip: Dict[str, Number]
     q_thresholds_cbr: Dict[str, Number]
-    q_thresholds_streaming: Dict[str, Number]
-
     # Metric matrices
     metric_matrices: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     
     # Traffic profiles for fallback: maps users count to profile ranges
-    # Applied to all traffic types: VoIP, CBR, and Video Streaming
+    # Applied to all supported traffic types: VoIP and CBR
     TRAFFIC_PROFILES: Dict[str, List[int]] = field(
         default_factory=lambda: {
             'profile_1': [5, 10],
@@ -128,10 +126,10 @@ class NetworkModel:
 
     def __post_init__(self):
         """Initialize tracking structures."""
-        self._cumulative_traffic = {'voip': [], 'cbr': [], 'streaming': []}
-        self._dti_count = {'voip': 0, 'cbr': 0, 'streaming': 0}
-        self._cumulative_failures = {'voip': 0, 'cbr': 0, 'streaming': 0}
-        self._cumulative_traffic_beta = {'voip': 0, 'cbr': 0, 'streaming': 0}
+        self._cumulative_traffic = {'voip': [], 'cbr': []}
+        self._dti_count = {'voip': 0, 'cbr': 0}
+        self._cumulative_failures = {'voip': 0, 'cbr': 0}
+        self._cumulative_traffic_beta = {'voip': 0, 'cbr': 0}
 
     # SETTERS AND GETTERS
     
@@ -146,7 +144,7 @@ class NetworkModel:
         self._current_rb_data = rb_data.copy()
     
     def set_service(self, service: str) -> None:
-        if service not in ['voip', 'cbr', 'streaming']:
+        if service not in ['voip', 'cbr']:
             raise ValueError(f"Unknown service: {service}")
         self._current_service = service
     
@@ -160,7 +158,7 @@ class NetworkModel:
         return self._current_service
     
     def set_metric_matrices(self, service: str, metric_data: Dict[str, Any]) -> None:
-        if service not in ['voip', 'cbr', 'streaming']:
+        if service not in ['voip', 'cbr']:
             raise ValueError(f"Unknown service: {service}")
         
         required_keys = ['metadata', 'mean_matrices', 'std_matrices']
@@ -175,11 +173,11 @@ class NetworkModel:
     def reset(self, traffic_type: str = None) -> None:
         """Reset cumulative tracking data."""
         if traffic_type is None:
-            self._cumulative_traffic = {'voip': [], 'cbr': [], 'streaming': []}
-            self._dti_count = {'voip': 0, 'cbr': 0, 'streaming': 0}
-            self._cumulative_failures = {'voip': 0, 'cbr': 0, 'streaming': 0}
-            self._cumulative_traffic_beta = {'voip': 0, 'cbr': 0, 'streaming': 0}
-        elif traffic_type in ['voip', 'cbr', 'streaming']:
+            self._cumulative_traffic = {'voip': [], 'cbr': []}
+            self._dti_count = {'voip': 0, 'cbr': 0}
+            self._cumulative_failures = {'voip': 0, 'cbr': 0}
+            self._cumulative_traffic_beta = {'voip': 0, 'cbr': 0}
+        elif traffic_type in ['voip', 'cbr']:
             self._cumulative_traffic[traffic_type] = []
             self._dti_count[traffic_type] = 0
             self._cumulative_failures[traffic_type] = 0
@@ -194,8 +192,6 @@ class NetworkModel:
             thresholds = self.q_thresholds_voip
         elif service == 'cbr':
             thresholds = self.q_thresholds_cbr
-        elif service == 'streaming':
-            thresholds = self.q_thresholds_streaming
         else:
             raise ValueError(f"Unknown service: {service}")
         
