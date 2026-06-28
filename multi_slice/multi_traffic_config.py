@@ -86,32 +86,53 @@ MIN_TRAFFIC_INPUTS = 2
 def get_default_multi_traffic_sample_input() -> dict:
 	"""Built-in traffic source for multi-traffic prediction mode.
 
-	`traffic_users_per_tti` maps each service name to its traffic matrix
-	(rows = DTIs, columns = TTIs per DTI). Number of inputs, service names,
-	number of DTIs, and number of TTIs per DTI are all derived from this matrix.
+	`traffic_users_per_tti` maps each unique input label to an entry with a
+	`service` (used to pick the checkpoint/model) and a `traffic` matrix
+	(rows = DTIs, columns = TTIs per DTI). The same service may appear under
+	multiple labels (e.g. two "voip" inputs). Number of inputs, service names,
+	number of DTIs, and number of TTIs per DTI are all derived from this mapping.
 	"""
 	return {
 		"traffic_users_per_tti": {
-			"voip": [
-				[5, 10, 5, 10, 5, 10, 5, 10],
-				[15, 20, 15, 20, 15, 20, 15, 20],
-				[25, 30, 25, 30, 25, 30, 25, 30],
-				[35, 40, 35, 40, 35, 40, 35, 40],
-				[45, 50, 45, 50, 45, 50, 45, 50],
-				[55, 60, 55, 60, 55, 60, 55, 60],
-				[65, 70, 65, 70, 65, 70, 65, 70],
-				[75, 80, 75, 80, 75, 80, 75, 80],
-			],
-			"cbr": [
-				[5, 10, 5, 10, 5, 10, 5, 10],
-				[15, 20, 15, 20, 15, 20, 15, 20],
-				[25, 30, 25, 30, 25, 30, 25, 30],
-				[35, 40, 35, 40, 35, 40, 35, 40],
-				[45, 50, 45, 50, 45, 50, 45, 50],
-				[55, 60, 55, 60, 55, 60, 55, 60],
-				[65, 70, 65, 70, 65, 70, 65, 70],
-				[75, 80, 75, 80, 75, 80, 75, 80],
-			],
+			"input_1_voip": {
+				"service": "voip",
+				"traffic": [
+					[35, 40, 35, 40, 35, 40, 35, 40],
+					[40, 45, 40, 45, 40, 45, 40, 45],
+					[35, 45, 35, 45, 35, 45, 35, 45],
+					[45, 50, 45, 50, 45, 50, 45, 50],
+					[30, 40, 35, 45, 30, 40, 35, 45],
+					[40, 50, 40, 50, 40, 50, 40, 50],
+					[35, 40, 45, 50, 35, 40, 45, 50],
+					[45, 45, 50, 50, 45, 45, 50, 50],
+				],
+			},
+			"input_2_voip": {
+				"service": "voip",
+				"traffic": [
+					[5, 10, 5, 10, 5, 10, 5, 10],
+					[10, 15, 10, 15, 10, 15, 10, 15],
+					[5, 10, 10, 15, 5, 10, 10, 15],
+					[15, 20, 15, 20, 15, 20, 15, 20],
+					[5, 5, 10, 10, 5, 5, 10, 10],
+					[10, 10, 15, 15, 10, 10, 15, 15],
+					[5, 10, 15, 20, 5, 10, 15, 20],
+					[10, 15, 20, 15, 10, 15, 20, 15],
+				],
+			},
+			"input_3_cbr": {
+				"service": "cbr",
+				"traffic": [
+					[35, 40, 35, 40, 35, 40, 35, 40],
+					[40, 45, 40, 45, 40, 45, 40, 45],
+					[35, 45, 35, 45, 35, 45, 35, 45],
+					[45, 50, 45, 50, 45, 50, 45, 50],
+					[30, 40, 35, 45, 30, 40, 35, 45],
+					[40, 50, 40, 50, 40, 50, 40, 50],
+					[35, 40, 45, 50, 35, 40, 45, 50],
+					[45, 45, 50, 50, 45, 45, 50, 50],
+				],
+			},
 		}
 	}
 
@@ -123,7 +144,8 @@ class MultiTrafficPredictionConfig:
 	Everything the run needs (number of inputs, service names, traffic matrices,
 	number of DTIs, number of TTIs per DTI) is derived from `sample_input`. The
 	`inputs` list may be left empty; it is then auto-built from `sample_input`'s
-	service keys.
+	labels, one input per label. The same service may repeat across labels
+	(e.g. two "voip" inputs and one "cbr" input).
 	"""
 
 	inputs: List[TrafficInputSelection] = field(default_factory=list)
@@ -136,13 +158,19 @@ class MultiTrafficPredictionConfig:
 	sample_input: dict = field(default_factory=get_default_multi_traffic_sample_input)
 
 	def normalized(self) -> "MultiTrafficPredictionConfig":
-		traffic_by_service = self.sample_input.get("traffic_users_per_tti") if self.sample_input else None
-		if not traffic_by_service:
+		traffic_by_label = self.sample_input.get("traffic_users_per_tti") if self.sample_input else None
+		if not traffic_by_label:
 			raise ValueError("sample_input must contain a non-empty 'traffic_users_per_tti' mapping")
 
+		for label, entry in traffic_by_label.items():
+			if not isinstance(entry, dict) or "service" not in entry or "traffic" not in entry:
+				raise ValueError(
+					f"sample_input entry for '{label}' must be a mapping with 'service' and 'traffic' keys"
+				)
+
 		inputs = list(self.inputs) if self.inputs else [
-			TrafficInputSelection(service=service, profile_name="sample_input", label=f"input_{idx}")
-			for idx, service in enumerate(traffic_by_service.keys(), start=1)
+			TrafficInputSelection(service=entry["service"], profile_name="sample_input", label=label)
+			for label, entry in traffic_by_label.items()
 		]
 		if len(inputs) < MIN_TRAFFIC_INPUTS:
 			raise ValueError(

@@ -72,7 +72,7 @@ class WCSACAgentConfig:
 	max_grad_norm: Optional[float] = 1.0
 	target_entropy: Optional[float] = None
 	# beta_threshold: QoS degradation limit. Matches WCSACAgent default.
-	beta_threshold: float = 0.5
+	beta_threshold: float = 0.3
 	# lagrange_lr: Lagrange multiplier growth rate when constraint is violated.
 	# Keep moderate — too high causes lambda to explode and crush the reward signal,
 	# making the agent allocate maximum RBs on every step (risk-averse collapse).

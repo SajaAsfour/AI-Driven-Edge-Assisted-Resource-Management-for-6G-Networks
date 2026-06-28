@@ -53,40 +53,45 @@ def _format_service_label(selection: TrafficInputSelection) -> str:
 	return selection.service
 
 
-def _validate_sample_traffic(traffic_by_service: Dict[str, Any]) -> Tuple[int, int]:
-	"""Validate per-service traffic matrices from the multi-traffic sample input.
+def _validate_sample_traffic(traffic_by_label: Dict[str, Any]) -> Tuple[int, int]:
+	"""Validate per-input-label traffic matrices from the multi-traffic sample input.
 
-	Returns (num_dtis, num_ttis_per_dti) derived from the matrices themselves.
+	Each entry must be a mapping with a 'service' and a 'traffic' matrix; the same
+	service may repeat across multiple labels. Returns (num_dtis, num_ttis_per_dti)
+	derived from the matrices themselves.
 	"""
-	if not traffic_by_service:
-		raise ValueError("sample_input['traffic_users_per_tti'] must contain at least one service")
+	if not traffic_by_label:
+		raise ValueError("sample_input['traffic_users_per_tti'] must contain at least one input")
 
 	num_dtis: Optional[int] = None
 	num_ttis: Optional[int] = None
-	for service, matrix in traffic_by_service.items():
+	for label, entry in traffic_by_label.items():
+		if not isinstance(entry, dict) or "service" not in entry or "traffic" not in entry:
+			raise ValueError(f"Input '{label}' must be a mapping with 'service' and 'traffic' keys")
+		matrix = entry["traffic"]
 		if not matrix:
-			raise ValueError(f"Traffic matrix for service '{service}' must be non-empty")
+			raise ValueError(f"Traffic matrix for input '{label}' must be non-empty")
 		if num_dtis is None:
 			num_dtis = len(matrix)
 		elif len(matrix) != num_dtis:
 			raise ValueError(
-				f"Service '{service}' has {len(matrix)} DTIs, expected {num_dtis} (all services must match)"
+				f"Input '{label}' has {len(matrix)} DTIs, expected {num_dtis} (all inputs must match)"
 			)
 		for row in matrix:
 			if not row:
-				raise ValueError(f"Traffic matrix for service '{service}' contains an empty DTI row")
+				raise ValueError(f"Traffic matrix for input '{label}' contains an empty DTI row")
 			if num_ttis is None:
 				num_ttis = len(row)
 			elif len(row) != num_ttis:
 				raise ValueError(
-					f"Service '{service}' has a DTI row with {len(row)} TTIs, expected {num_ttis} "
-					"(all rows/services must match)"
+					f"Input '{label}' has a DTI row with {len(row)} TTIs, expected {num_ttis} "
+					"(all rows/inputs must match)"
 				)
 			for value in row:
 				if isinstance(value, bool) or not isinstance(value, int):
-					raise ValueError(f"Traffic value for service '{service}' must be an integer, got {value!r}")
+					raise ValueError(f"Traffic value for input '{label}' must be an integer, got {value!r}")
 				if value < 0:
-					raise ValueError(f"Traffic value for service '{service}' must be >= 0, got {value}")
+					raise ValueError(f"Traffic value for input '{label}' must be >= 0, got {value}")
 
 	return int(num_dtis), int(num_ttis)
 
@@ -318,20 +323,25 @@ class MultiTrafficPredictor:
 		)
 
 	def run(self) -> MultiTrafficPredictionResult:
-		traffic_by_service = self.config.sample_input["traffic_users_per_tti"]
-		num_inputs = len(traffic_by_service)
-		service_names = list(traffic_by_service.keys())
-		num_dtis, num_ttis_per_dti = _validate_sample_traffic(traffic_by_service)
+		traffic_by_label = self.config.sample_input["traffic_users_per_tti"]
+		num_inputs = len(traffic_by_label)
+		service_names = [entry["service"] for entry in traffic_by_label.values()]
+		num_dtis, num_ttis_per_dti = _validate_sample_traffic(traffic_by_label)
 
 		runtimes: List[TrafficInputRuntime] = []
 		sweep_envs: List[Any] = []
 		for idx, selection in enumerate(self.config.inputs):
 			label = selection.label or f"input_{idx + 1}"
-			if selection.service not in traffic_by_service:
+			if label not in traffic_by_label:
+				raise ValueError(f"No traffic matrix found for input label '{label}' in sample_input")
+			entry = traffic_by_label[label]
+			expected_service = normalize_service_name(entry["service"])
+			if selection.service != expected_service:
 				raise ValueError(
-					f"No traffic matrix found for service '{selection.service}' in sample_input"
+					f"Input '{label}' service mismatch: selection has '{selection.service}', "
+					f"sample_input declares '{expected_service}'"
 				)
-			traffic_matrix = traffic_by_service[selection.service]
+			traffic_matrix = entry["traffic"]
 			runtime = self._build_runtime_input(selection, label, seed_offset=idx, traffic_matrix=traffic_matrix)
 			runtimes.append(runtime)
 			sweep_envs.append(self._build_sweep_env(runtime, seed_offset=1000 + idx))
