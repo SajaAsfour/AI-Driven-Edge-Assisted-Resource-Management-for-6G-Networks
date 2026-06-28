@@ -1,21 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import List, Sequence
 
 
 @dataclass(slots=True)
 class AllocationDecision:
-	request_1: int
-	request_2: int
-	allocation_1: int
-	allocation_2: int
+	requests: List[int]
+	allocations: List[int]
 	total_requested: int
 	capacity: int
 	scaling_applied: bool
 
 	@property
 	def total_allocated(self) -> int:
-		return int(self.allocation_1 + self.allocation_2)
+		return int(sum(self.allocations))
 
 
 def _clamp_int(value: int, lower: int, upper: int) -> int:
@@ -24,37 +23,38 @@ def _clamp_int(value: int, lower: int, upper: int) -> int:
 	return max(lower, min(upper, int(value)))
 
 
-def proportional_allocate_two_requests(
-	request_1: int,
-	request_2: int,
+def proportional_allocate_requests(
+	requests: Sequence[int],
 	capacity: int = 8,
 	min_rb: int = 1,
 ) -> AllocationDecision:
-	"""Allocate two RB requests under a shared capacity using proportional fairness.
+	"""Allocate N RB requests under a shared capacity using proportional fairness.
 
 	Rules:
 	- If total requested RBs do not exceed capacity, keep the requests as-is.
 	- If total requested RBs exceed capacity, allocate proportionally and convert
 	  to integer RB values using a largest-remainder step so the final total never
 	  exceeds capacity.
+	- Supports any number of requests (2, 3, or more).
 	"""
+	if not requests:
+		raise ValueError("requests must contain at least one value")
 	if capacity < 0:
 		raise ValueError(f"capacity must be >= 0, got {capacity}")
 	if min_rb < 0:
 		raise ValueError(f"min_rb must be >= 0, got {min_rb}")
-	if min_rb > capacity:
-		raise ValueError(f"min_rb must be <= capacity, got {min_rb} > {capacity}")
+	if min_rb * len(requests) > capacity:
+		raise ValueError(
+			f"min_rb * num_requests must be <= capacity, got {min_rb} * {len(requests)} > {capacity}"
+		)
 
-	r1 = _clamp_int(request_1, min_rb, capacity)
-	r2 = _clamp_int(request_2, min_rb, capacity)
-	total_requested = int(r1 + r2)
+	clamped = [_clamp_int(value, min_rb, capacity) for value in requests]
+	total_requested = int(sum(clamped))
 
 	if total_requested <= capacity:
 		return AllocationDecision(
-			request_1=r1,
-			request_2=r2,
-			allocation_1=r1,
-			allocation_2=r2,
+			requests=clamped,
+			allocations=list(clamped),
 			total_requested=total_requested,
 			capacity=capacity,
 			scaling_applied=False,
@@ -62,55 +62,41 @@ def proportional_allocate_two_requests(
 
 	if total_requested == 0:
 		return AllocationDecision(
-			request_1=0,
-			request_2=0,
-			allocation_1=0,
-			allocation_2=0,
+			requests=clamped,
+			allocations=[0] * len(clamped),
 			total_requested=0,
 			capacity=capacity,
 			scaling_applied=True,
 		)
 
-	exact_1 = (r1 / total_requested) * capacity
-	exact_2 = (r2 / total_requested) * capacity
+	exact = [(value / total_requested) * capacity for value in clamped]
+	base = [int(value) for value in exact]
+	frac = [exact[i] - base[i] for i in range(len(exact))]
 
-	base_1 = int(exact_1)
-	base_2 = int(exact_2)
-	frac_1 = exact_1 - base_1
-	frac_2 = exact_2 - base_2
-
-	alloc_1 = base_1
-	alloc_2 = base_2
-	remaining = capacity - (alloc_1 + alloc_2)
+	allocations = list(base)
+	remaining = capacity - sum(allocations)
 
 	if remaining > 0:
-		frac_pairs = [(1, frac_1), (2, frac_2)]
-		frac_pairs.sort(key=lambda item: (-item[1], item[0]))
+		# Largest fractional remainder first; ties broken by lowest index for determinism.
+		order = sorted(range(len(allocations)), key=lambda i: (-frac[i], i))
 		index = 0
 		while remaining > 0:
-			service_idx = frac_pairs[index % len(frac_pairs)][0]
-			if service_idx == 1:
-				alloc_1 += 1
-			else:
-				alloc_2 += 1
+			allocations[order[index % len(order)]] += 1
 			remaining -= 1
 			index += 1
 
-	alloc_1 = _clamp_int(alloc_1, min_rb, capacity)
-	alloc_2 = _clamp_int(alloc_2, min_rb, capacity)
-	while alloc_1 + alloc_2 > capacity:
-		if alloc_1 >= alloc_2 and alloc_1 > min_rb:
-			alloc_1 -= 1
-		elif alloc_2 > min_rb:
-			alloc_2 -= 1
-		else:
+	allocations = [_clamp_int(value, min_rb, capacity) for value in allocations]
+	while sum(allocations) > capacity:
+		# Shrink the largest allocation above min_rb until total fits capacity.
+		candidates = [i for i in range(len(allocations)) if allocations[i] > min_rb]
+		if not candidates:
 			break
+		shrink_idx = max(candidates, key=lambda i: allocations[i])
+		allocations[shrink_idx] -= 1
 
 	return AllocationDecision(
-		request_1=r1,
-		request_2=r2,
-		allocation_1=alloc_1,
-		allocation_2=alloc_2,
+		requests=clamped,
+		allocations=allocations,
 		total_requested=total_requested,
 		capacity=capacity,
 		scaling_applied=True,

@@ -14,9 +14,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
 	sys.path.insert(0, str(PROJECT_ROOT))
 
-from SAC_RL_Model.traffic_profiles import build_traffic_matrix_from_profile, get_default_profiles, get_profile_or_raise
+from WCSAC_RL_Model.traffic_profiles import build_traffic_matrix_from_profile, get_default_profiles, get_profile_or_raise
 
-from multi_slice.multi_traffic_allocator import AllocationDecision, proportional_allocate_two_requests
+from multi_slice.multi_traffic_allocator import AllocationDecision, proportional_allocate_requests
 from multi_slice.multi_traffic_config import (
 	MultiTrafficPredictionConfig,
 	TrafficInputSelection,
@@ -179,29 +179,30 @@ class TrafficInputRuntime:
 
 
 @dataclass(slots=True)
+class TrafficInputStepLog:
+	input_label: str
+	service: str
+	profile_name: str
+	traffic_dti: List[int]
+	raw_requested_rb: int
+	raw_beta_current: float
+	requested_rb: int
+	request_beta_current: float
+	request_selection_reason: str
+	allocated_rb: int
+	beta_current: float
+	reward: float
+
+
+@dataclass(slots=True)
 class TrafficStepLog:
 	dti_index: int
-	traffic_dti_1: List[int]
-	traffic_dti_2: List[int]
-	raw_requested_rb_1: int
-	raw_requested_rb_2: int
-	raw_beta_current_1: float
-	raw_beta_current_2: float
-	requested_rb_1: int
-	requested_rb_2: int
-	request_beta_current_1: float
-	request_beta_current_2: float
-	request_selection_reason_1: str
-	request_selection_reason_2: str
 	total_requested_rb: int
+	total_allocated_rb: int
+	capacity: int
 	scaling_applied: bool
-	allocated_rb_1: int
-	allocated_rb_2: int
 	beta_threshold: float
-	beta_current_1: float
-	beta_current_2: float
-	reward_1: float
-	reward_2: float
+	inputs: List[TrafficInputStepLog]
 
 
 @dataclass(slots=True)
@@ -217,7 +218,7 @@ class MultiTrafficPredictionResult:
 
 
 class MultiTrafficPredictor:
-	"""Run two trained WCSAC agents in evaluation-only mode and allocate RBs globally."""
+	"""Run multiple trained WCSAC agents in evaluation-only mode and allocate RBs globally."""
 
 	def __init__(self, config: MultiTrafficPredictionConfig, logger: Optional[logging.Logger] = None) -> None:
 		self.config = config.normalized()
@@ -285,120 +286,122 @@ class MultiTrafficPredictor:
 		)
 
 	def run(self) -> MultiTrafficPredictionResult:
-		runtime_1 = self._build_runtime_input(self.config.input_1, "input_1", seed_offset=0)
-		runtime_2 = self._build_runtime_input(self.config.input_2, "input_2", seed_offset=1)
-		sweep_env_1 = self._build_sweep_env(runtime_1, seed_offset=1000)
-		sweep_env_2 = self._build_sweep_env(runtime_2, seed_offset=1001)
+		runtimes: List[TrafficInputRuntime] = []
+		sweep_envs: List[Any] = []
+		for idx, selection in enumerate(self.config.inputs):
+			label = selection.label or f"input_{idx + 1}"
+			runtime = self._build_runtime_input(selection, label, seed_offset=idx)
+			runtimes.append(runtime)
+			sweep_envs.append(self._build_sweep_env(runtime, seed_offset=1000 + idx))
 
-		if runtime_1.env.m != runtime_2.env.m or runtime_1.env.n != runtime_2.env.n:
-			raise ValueError("Both inputs must share the same network dimensions (n and m)")
+		base_m, base_n = runtimes[0].env.m, runtimes[0].env.n
+		for runtime in runtimes[1:]:
+			if runtime.env.m != base_m or runtime.env.n != base_n:
+				raise ValueError("All inputs must share the same network dimensions (n and m)")
 
-		runtime_1.env.model.reset(runtime_1.env.service)
-		runtime_2.env.model.reset(runtime_2.env.service)
+		for runtime in runtimes:
+			runtime.env.model.reset(runtime.env.service)
 
-		self.logger.info("Selected input 1: service=%s, profile=%s", runtime_1.selection.service, runtime_1.selection.profile_name)
-		self.logger.info("Selected input 2: service=%s, profile=%s", runtime_2.selection.service, runtime_2.selection.profile_name)
-		self.logger.info("Checkpoint input 1: %s", runtime_1.checkpoint_path)
-		self.logger.info("Checkpoint input 2: %s", runtime_2.checkpoint_path)
+		for runtime in runtimes:
+			self.logger.info(
+				"Selected %s: service=%s, profile=%s",
+				runtime.selection.label,
+				runtime.selection.service,
+				runtime.selection.profile_name,
+			)
+		for runtime in runtimes:
+			self.logger.info("Checkpoint %s: %s", runtime.selection.label, runtime.checkpoint_path)
 		self.logger.info("Global RB capacity: %s", self.config.capacity)
 		self.logger.info("Beta threshold: %.6f", self.config.beta_threshold)
 
 		step_logs: List[TrafficStepLog] = []
 
-		for dti_index in range(runtime_1.env.m):
+		for dti_index in range(base_m):
 			display_dti = dti_index + 1
-			traffic_1 = runtime_1.traffic_matrix[dti_index]
-			traffic_2 = runtime_2.traffic_matrix[dti_index]
+			traffics = [runtime.traffic_matrix[dti_index] for runtime in runtimes]
 
 			self.logger.info(
-				"DTI %s | traffic TTIs input_1=%s | input_2=%s",
+				"DTI %s | traffic TTIs %s",
 				display_dti,
-				traffic_1,
-				traffic_2,
+				{runtime.selection.label: traffic for runtime, traffic in zip(runtimes, traffics)},
 			)
 
-			raw_requested_1 = int(runtime_1.env.infer_rb_from_traffic(
-				agent=runtime_1.agent,
-				traffic_dti=traffic_1,
-				dti_index=dti_index,
-			))
-			raw_requested_2 = int(runtime_2.env.infer_rb_from_traffic(
-				agent=runtime_2.agent,
-				traffic_dti=traffic_2,
-				dti_index=dti_index,
-			))
+			raw_requests: List[int] = []
+			raw_evals: List[Dict[str, Any]] = []
+			requested: List[int] = []
+			request_evals: List[Dict[str, Any]] = []
+			reasons: List[str] = []
 
-			requested_1, request_eval_1, raw_eval_1, reason_1 = _select_threshold_safe_request(
-				sweep_env=sweep_env_1,
-				traffic_dti=traffic_1,
-				raw_requested_rb=raw_requested_1,
-				beta_threshold=self.config.beta_threshold,
-			)
-			requested_2, request_eval_2, raw_eval_2, reason_2 = _select_threshold_safe_request(
-				sweep_env=sweep_env_2,
-				traffic_dti=traffic_2,
-				raw_requested_rb=raw_requested_2,
-				beta_threshold=self.config.beta_threshold,
-			)
+			for runtime, sweep_env, traffic in zip(runtimes, sweep_envs, traffics):
+				raw_requested_rb = int(runtime.env.infer_rb_from_traffic(
+					agent=runtime.agent,
+					traffic_dti=traffic,
+					dti_index=dti_index,
+				))
 
-			# The multi allocator now receives the same threshold-safe requests produced by WCSAC main.py choice 4.
-			allocation = proportional_allocate_two_requests(
-				requested_1,
-				requested_2,
+				# The multi allocator receives the same threshold-safe requests produced by WCSAC main.py choice 4.
+				requested_rb, request_eval, raw_eval, reason = _select_threshold_safe_request(
+					sweep_env=sweep_env,
+					traffic_dti=traffic,
+					raw_requested_rb=raw_requested_rb,
+					beta_threshold=self.config.beta_threshold,
+				)
+
+				raw_requests.append(raw_requested_rb)
+				raw_evals.append(raw_eval)
+				requested.append(requested_rb)
+				request_evals.append(request_eval)
+				reasons.append(reason)
+
+			allocation = proportional_allocate_requests(
+				requested,
 				capacity=self.config.capacity,
 				min_rb=1,
 			)
 
-			# Use process_dti only for the final allocation so cumulative beta state is not polluted by request sweeps.
-			eval_1 = evaluate_allocation(runtime_1.env, traffic_1, allocation.allocation_1)
-			eval_2 = evaluate_allocation(runtime_2.env, traffic_2, allocation.allocation_2)
-
-			beta_1 = float(eval_1["beta_current"])
-			beta_2 = float(eval_2["beta_current"])
-			threshold = float(self.config.beta_threshold)
+			input_logs: List[TrafficInputStepLog] = []
+			for idx, runtime in enumerate(runtimes):
+				# Use process_dti only for the final allocation so cumulative beta state is not polluted by request sweeps.
+				eval_result = evaluate_allocation(runtime.env, traffics[idx], allocation.allocations[idx])
+				input_logs.append(
+					TrafficInputStepLog(
+						input_label=runtime.selection.label,
+						service=runtime.selection.service,
+						profile_name=runtime.selection.profile_name,
+						traffic_dti=list(traffics[idx]),
+						raw_requested_rb=int(raw_requests[idx]),
+						raw_beta_current=float(raw_evals[idx]["beta_current"]),
+						requested_rb=int(requested[idx]),
+						request_beta_current=float(request_evals[idx]["beta_current"]),
+						request_selection_reason=reasons[idx],
+						allocated_rb=int(allocation.allocations[idx]),
+						beta_current=float(eval_result["beta_current"]),
+						reward=float(eval_result["reward_current"]),
+					)
+				)
 
 			step_log = TrafficStepLog(
 				dti_index=display_dti,
-				traffic_dti_1=list(traffic_1),
-				traffic_dti_2=list(traffic_2),
-				raw_requested_rb_1=int(raw_requested_1),
-				raw_requested_rb_2=int(raw_requested_2),
-				raw_beta_current_1=float(raw_eval_1["beta_current"]),
-				raw_beta_current_2=float(raw_eval_2["beta_current"]),
-				requested_rb_1=int(requested_1),
-				requested_rb_2=int(requested_2),
-				request_beta_current_1=float(request_eval_1["beta_current"]),
-				request_beta_current_2=float(request_eval_2["beta_current"]),
-				request_selection_reason_1=reason_1,
-				request_selection_reason_2=reason_2,
-				total_requested_rb=allocation.total_requested,
-				scaling_applied=allocation.scaling_applied,
-				allocated_rb_1=allocation.allocation_1,
-				allocated_rb_2=allocation.allocation_2,
-				beta_threshold=threshold,
-				beta_current_1=beta_1,
-				beta_current_2=beta_2,
-				reward_1=float(eval_1["reward_current"]),
-				reward_2=float(eval_2["reward_current"]),
+				total_requested_rb=int(allocation.total_requested),
+				total_allocated_rb=int(allocation.total_allocated),
+				capacity=int(allocation.capacity),
+				scaling_applied=bool(allocation.scaling_applied),
+				beta_threshold=float(self.config.beta_threshold),
+				inputs=input_logs,
 			)
 			step_logs.append(step_log)
 
 			self.logger.info(
-				"DTI %s | request_1=%s request_2=%s total=%s | request_beta_1=%.4f request_beta_2=%.4f threshold=%.4f | alloc_1=%s alloc_2=%s scaled=%s | final_beta_1=%.4f final_beta_2=%.4f | reward_1=%.4f reward_2=%.4f",
+				"DTI %s | total_requested=%s total_allocated=%s scaled=%s | %s",
 				display_dti,
-				requested_1,
-				requested_2,
-				allocation.total_requested,
-				step_log.request_beta_current_1,
-				step_log.request_beta_current_2,
-				threshold,
-				allocation.allocation_1,
-				allocation.allocation_2,
-				allocation.scaling_applied,
-				step_log.beta_current_1,
-				step_log.beta_current_2,
-				step_log.reward_1,
-				step_log.reward_2,
+				step_log.total_requested_rb,
+				step_log.total_allocated_rb,
+				step_log.scaling_applied,
+				" | ".join(
+					f"{log.input_label}: req={log.requested_rb} alloc={log.allocated_rb} "
+					f"beta={log.beta_current:.4f} reward={log.reward:.4f}"
+					for log in input_logs
+				),
 			)
 
 		result = MultiTrafficPredictionResult(
@@ -410,19 +413,13 @@ class MultiTrafficPredictor:
 			},
 			inputs=[
 				{
-					"label": _format_service_label(runtime_1.selection),
-					"service": runtime_1.selection.service,
-					"profile_name": runtime_1.selection.profile_name,
-					"checkpoint_path": runtime_1.checkpoint_path,
-					"profile_values": runtime_1.profile_values,
-				},
-				{
-					"label": _format_service_label(runtime_2.selection),
-					"service": runtime_2.selection.service,
-					"profile_name": runtime_2.selection.profile_name,
-					"checkpoint_path": runtime_2.checkpoint_path,
-					"profile_values": runtime_2.profile_values,
-				},
+					"label": _format_service_label(runtime.selection),
+					"service": runtime.selection.service,
+					"profile_name": runtime.selection.profile_name,
+					"checkpoint_path": runtime.checkpoint_path,
+					"profile_values": runtime.profile_values,
+				}
+				for runtime in runtimes
 			],
 			steps=step_logs,
 			output_path=self.output_dir / "wcsac_multi_traffic_prediction_output.json",

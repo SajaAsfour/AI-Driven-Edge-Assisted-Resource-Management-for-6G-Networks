@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from typing import Dict, List, Mapping, Sequence, Tuple
+from typing import Dict, List, Mapping, Sequence, Tuple, Optional
 
 
 def build_ue_profiles(
@@ -44,7 +44,11 @@ def build_ue_profiles(
     return profiles
 
 
-def build_dti_from_profile(profile_values: Sequence[int], n: int) -> List[int]:
+def build_dti_from_profile(
+    profile_values: Sequence[int],
+    n: int,
+    rng: Optional[random.Random] = None,
+) -> List[int]:
     """
         Build one DTI vector by random sampling from selected profile values.
 
@@ -64,7 +68,8 @@ def build_dti_from_profile(profile_values: Sequence[int], n: int) -> List[int]:
     if any(v < 0 for v in vals):
         raise ValueError("profile_values must be >= 0")
 
-    out = [int(random.choice(vals)) for _ in range(n)]
+    chooser = rng.choice if rng is not None else random.choice
+    out = [int(chooser(vals)) for _ in range(n)]
 
     if len(out) != n:
         raise ValueError("built DTI length mismatch")
@@ -75,6 +80,7 @@ def build_traffic_matrix_from_profile(
     profile_values: Sequence[int],
     m: int,
     n: int,
+    rng: Optional[random.Random] = None,
 ) -> List[List[int]]:
     """Build full traffic matrix [m x n] from one selected profile.
 
@@ -84,7 +90,10 @@ def build_traffic_matrix_from_profile(
     if m <= 0:
         raise ValueError("m must be > 0")
 
-    matrix = [build_dti_from_profile(profile_values=profile_values, n=n) for _ in range(m)]
+    matrix = [
+        build_dti_from_profile(profile_values=profile_values, n=n, rng=rng)
+        for _ in range(m)
+    ]
 
     if len(matrix) != m:
         raise ValueError("traffic matrix row count mismatch")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -67,12 +67,14 @@ class TrafficInputSelection:
 		)
 
 
+MIN_TRAFFIC_INPUTS = 2
+
+
 @dataclass(slots=True)
 class MultiTrafficPredictionConfig:
-	"""Configuration for a two-input WCSAC multi-traffic prediction run."""
+	"""Configuration for an N-input WCSAC multi-traffic prediction run."""
 
-	input_1: TrafficInputSelection
-	input_2: TrafficInputSelection
+	inputs: List[TrafficInputSelection]
 	model_name: Optional[str] = "wcsac"
 	capacity: int = 8
 	beta_threshold: float = 0.1
@@ -81,13 +83,16 @@ class MultiTrafficPredictionConfig:
 	checkpoint_base_dir: Optional[Path] = None
 
 	def normalized(self) -> "MultiTrafficPredictionConfig":
+		if len(self.inputs) < MIN_TRAFFIC_INPUTS:
+			raise ValueError(
+				f"At least {MIN_TRAFFIC_INPUTS} traffic inputs are required, got {len(self.inputs)}"
+			)
 		model_key = normalize_model_name(self.model_name)
 		base_dir = Path(self.checkpoint_base_dir).expanduser() if self.checkpoint_base_dir is not None else resolve_default_checkpoint_base_dir(model_key)
 		if not base_dir.is_absolute():
 			base_dir = (WORKSPACE_ROOT / base_dir).resolve()
 		return MultiTrafficPredictionConfig(
-			input_1=self.input_1.normalized(),
-			input_2=self.input_2.normalized(),
+			inputs=[selection.normalized() for selection in self.inputs],
 			model_name=model_key,
 			capacity=int(self.capacity),
 			beta_threshold=float(self.beta_threshold),

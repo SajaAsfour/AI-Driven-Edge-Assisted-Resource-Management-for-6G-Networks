@@ -43,10 +43,20 @@ def _prompt_choice(prompt: str, options: list[str]) -> str:
 
 
 def _prompt_profile(prompt_label: str) -> str:
-	from SAC_RL_Model.traffic_profiles import get_default_profiles
+	from WCSAC_RL_Model.traffic_profiles import get_default_profiles
 
 	profiles = list(get_default_profiles().keys())
 	return _prompt_choice(prompt_label, profiles)
+
+
+def _prompt_int(prompt: str, minimum: int) -> int:
+	while True:
+		raw = input(prompt).strip()
+		if raw.isdigit():
+			value = int(raw)
+			if value >= minimum:
+				return value
+		print(f"Invalid selection. Please enter an integer >= {minimum}.")
 
 
 def _get_default_beta_threshold() -> float:
@@ -60,13 +70,16 @@ def _get_default_beta_threshold() -> float:
 		return 0.1
 
 
+MAX_TRAFFIC_INPUTS = 8
+
+
 def main() -> None:
-	from multi_slice.multi_traffic_config import AVAILABLE_SERVICES, MultiTrafficPredictionConfig, TrafficInputSelection
+	from multi_slice.multi_traffic_config import AVAILABLE_SERVICES, MIN_TRAFFIC_INPUTS, MultiTrafficPredictionConfig, TrafficInputSelection
 	from multi_slice.multi_traffic_predictor import MultiTrafficPredictor
 
 	while True:
 		print("====================================")
-		print("Select RL Model:")
+		print("Enter your choice (1-2):")
 		print("  1. WCSAC")
 		print("  2. Exit")
 		print("====================================")
@@ -82,10 +95,24 @@ def main() -> None:
 			print("Invalid selection. Please try again.")
 			continue
 
-		service_1 = _prompt_choice("Select service for input 1", list(AVAILABLE_SERVICES))
-		profile_1 = _prompt_profile("Select profile for input 1")
-		service_2 = _prompt_choice("Select service for input 2", list(AVAILABLE_SERVICES))
-		profile_2 = _prompt_profile("Select profile for input 2")
+		num_inputs = _prompt_int(
+			f"How many traffic inputs do you want to use? ({MIN_TRAFFIC_INPUTS}-{MAX_TRAFFIC_INPUTS}): ",
+			minimum=MIN_TRAFFIC_INPUTS,
+		)
+		if num_inputs > MAX_TRAFFIC_INPUTS:
+			print(f"Invalid selection. Maximum is {MAX_TRAFFIC_INPUTS} because capacity = 8.")
+			continue
+
+		inputs: list[TrafficInputSelection] = []
+		for i in range(1, num_inputs + 1):
+			service = _prompt_choice(f"Select service for input {i}", list(AVAILABLE_SERVICES))
+			profile = _prompt_profile(f"Select profile for input {i}")
+			inputs.append(TrafficInputSelection(service=service, profile_name=profile, label=f"input_{i}"))
+
+		print("\nSelected inputs:")
+		for selection in inputs:
+			print(f"  {selection.label}: service={selection.service}, profile={selection.profile_name}")
+		print()
 
 		output_dir = MULTI_SLICE_ROOT / "multi_traffic"
 		log_path = output_dir / f"{model_name}_multi_traffic_prediction.log"
@@ -93,8 +120,7 @@ def main() -> None:
 		beta_threshold = _get_default_beta_threshold()
 
 		config = MultiTrafficPredictionConfig(
-			input_1=TrafficInputSelection(service=service_1, profile_name=profile_1, label="input_1"),
-			input_2=TrafficInputSelection(service=service_2, profile_name=profile_2, label="input_2"),
+			inputs=inputs,
 			model_name=model_name,
 			capacity=8,
 			beta_threshold=beta_threshold,
@@ -104,8 +130,8 @@ def main() -> None:
 
 		try:
 			print(f"Starting multi-traffic prediction mode for {model_label}")
-			print(f"Input 1: service={service_1}, profile={profile_1}")
-			print(f"Input 2: service={service_2}, profile={profile_2}")
+			for selection in inputs:
+				print(f"{selection.label}: service={selection.service}, profile={selection.profile_name}")
 			print(f"Beta threshold: {beta_threshold}")
 
 			runner = MultiTrafficPredictor(config=config, logger=logger)
@@ -120,9 +146,9 @@ def main() -> None:
 		print("Finished multi-traffic prediction")
 		if result.steps:
 			last_step = result.steps[-1]
-			print(
-				f"Last allocated RBs: input 1 = {last_step.allocated_rb_1}, input 2 = {last_step.allocated_rb_2}"
-			)
+			print("Last allocated RBs:")
+			for input_log in last_step.inputs:
+				print(f"  {input_log.input_label} = {input_log.allocated_rb}")
 		print("\nMulti-traffic prediction completed.\n")
 
 
