@@ -2,19 +2,16 @@ from __future__ import annotations
 
 import json
 import logging
-import random
 import sys
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
 
 import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
 	sys.path.insert(0, str(PROJECT_ROOT))
-
-from WCSAC_RL_Model.traffic_profiles import build_traffic_matrix_from_profile, get_default_profiles, get_profile_or_raise
 
 from multi_slice.multi_traffic_allocator import AllocationDecision, proportional_allocate_requests
 from multi_slice.multi_traffic_config import (
@@ -54,6 +51,44 @@ def _format_service_label(selection: TrafficInputSelection) -> str:
 	if label:
 		return label
 	return selection.service
+
+
+def _validate_sample_traffic(traffic_by_service: Dict[str, Any]) -> Tuple[int, int]:
+	"""Validate per-service traffic matrices from the multi-traffic sample input.
+
+	Returns (num_dtis, num_ttis_per_dti) derived from the matrices themselves.
+	"""
+	if not traffic_by_service:
+		raise ValueError("sample_input['traffic_users_per_tti'] must contain at least one service")
+
+	num_dtis: Optional[int] = None
+	num_ttis: Optional[int] = None
+	for service, matrix in traffic_by_service.items():
+		if not matrix:
+			raise ValueError(f"Traffic matrix for service '{service}' must be non-empty")
+		if num_dtis is None:
+			num_dtis = len(matrix)
+		elif len(matrix) != num_dtis:
+			raise ValueError(
+				f"Service '{service}' has {len(matrix)} DTIs, expected {num_dtis} (all services must match)"
+			)
+		for row in matrix:
+			if not row:
+				raise ValueError(f"Traffic matrix for service '{service}' contains an empty DTI row")
+			if num_ttis is None:
+				num_ttis = len(row)
+			elif len(row) != num_ttis:
+				raise ValueError(
+					f"Service '{service}' has a DTI row with {len(row)} TTIs, expected {num_ttis} "
+					"(all rows/services must match)"
+				)
+			for value in row:
+				if isinstance(value, bool) or not isinstance(value, int):
+					raise ValueError(f"Traffic value for service '{service}' must be an integer, got {value!r}")
+				if value < 0:
+					raise ValueError(f"Traffic value for service '{service}' must be >= 0, got {value}")
+
+	return int(num_dtis), int(num_ttis)
 
 
 def evaluate_allocation(
@@ -175,7 +210,6 @@ class TrafficInputRuntime:
 	env: Any
 	agent: Any
 	checkpoint_path: Path
-	profile_values: List[int]
 	traffic_matrix: List[List[int]]
 
 
@@ -241,19 +275,21 @@ class MultiTrafficPredictor:
 
 		return NetworkWCSACEnv, WCSACAgent
 
-	def _build_runtime_input(self, selection: TrafficInputSelection, label: str, seed_offset: int) -> TrafficInputRuntime:
+	def _build_runtime_input(
+		self,
+		selection: TrafficInputSelection,
+		label: str,
+		seed_offset: int,
+		traffic_matrix: List[List[int]],
+	) -> TrafficInputRuntime:
 		service = normalize_service_name(selection.service)
-		profile_name = str(selection.profile_name).strip().lower()
-		profiles = get_default_profiles()
-		_, profile_values = get_profile_or_raise(profiles, profile_name)
-
 		checkpoint_path = resolve_final_checkpoint_path(self.base_checkpoint_dir, service, self.config.model_name)
 		env_class, agent_class = self._load_model_components()
 
+		# Traffic comes entirely from config.sample_input below; the env's own fixed-profile
+		# traffic generation is unused (infer_rb_from_traffic/evaluate_allocation take traffic explicitly).
 		env = env_class(
 			service=service,
-			traffic_profile_mode="fixed",
-			fixed_profile_name=profile_name,
 			rb_min=1,
 			seed=self.config.seed + seed_offset,
 			silent=True,
@@ -264,19 +300,11 @@ class MultiTrafficPredictor:
 		agent = agent_class(state_dim=state_dim, action_dim=action_dim)
 		agent.load(checkpoint_path)
 
-		rng = random.Random(self.config.seed + seed_offset)
-		# num_dtis controls how many DTI rows are generated here; it is independent of
-		# env.m (the WCSAC network config's own DTI count) and is never used for env.m or capacity.
-		traffic_matrix = build_traffic_matrix_from_profile(
-			profile_values=profile_values, m=self.config.num_dtis, n=env.n, rng=rng
-		)
-
 		return TrafficInputRuntime(
-			selection=TrafficInputSelection(service=service, profile_name=profile_name, label=label),
+			selection=TrafficInputSelection(service=service, profile_name=selection.profile_name, label=label),
 			env=env,
 			agent=agent,
 			checkpoint_path=checkpoint_path,
-			profile_values=profile_values,
 			traffic_matrix=traffic_matrix,
 		)
 
@@ -284,19 +312,27 @@ class MultiTrafficPredictor:
 		env_class, _ = self._load_model_components()
 		return env_class(
 			service=runtime.selection.service,
-			traffic_profile_mode="fixed",
-			fixed_profile_name=runtime.selection.profile_name,
 			rb_min=int(getattr(runtime.env, "rb_min", 1)),
 			seed=self.config.seed + seed_offset,
 			silent=True,
 		)
 
 	def run(self) -> MultiTrafficPredictionResult:
+		traffic_by_service = self.config.sample_input["traffic_users_per_tti"]
+		num_inputs = len(traffic_by_service)
+		service_names = list(traffic_by_service.keys())
+		num_dtis, num_ttis_per_dti = _validate_sample_traffic(traffic_by_service)
+
 		runtimes: List[TrafficInputRuntime] = []
 		sweep_envs: List[Any] = []
 		for idx, selection in enumerate(self.config.inputs):
 			label = selection.label or f"input_{idx + 1}"
-			runtime = self._build_runtime_input(selection, label, seed_offset=idx)
+			if selection.service not in traffic_by_service:
+				raise ValueError(
+					f"No traffic matrix found for service '{selection.service}' in sample_input"
+				)
+			traffic_matrix = traffic_by_service[selection.service]
+			runtime = self._build_runtime_input(selection, label, seed_offset=idx, traffic_matrix=traffic_matrix)
 			runtimes.append(runtime)
 			sweep_envs.append(self._build_sweep_env(runtime, seed_offset=1000 + idx))
 
@@ -304,7 +340,6 @@ class MultiTrafficPredictor:
 		for runtime in runtimes[1:]:
 			if runtime.env.n != base_n:
 				raise ValueError("All inputs must share the same number of TTIs per DTI (n)")
-		num_dtis = int(self.config.num_dtis)
 
 		for runtime in runtimes:
 			runtime.env.model.reset(runtime.env.service)
@@ -418,7 +453,11 @@ class MultiTrafficPredictor:
 				"beta_threshold": self.config.beta_threshold,
 				"seed": self.config.seed,
 				"model_name": self.config.model_name or "wcsac",
+				"traffic_source": "multi_traffic_config_sample_input",
+				"num_inputs": num_inputs,
+				"service_names": service_names,
 				"num_dtis": num_dtis,
+				"num_ttis_per_dti": num_ttis_per_dti,
 			},
 			inputs=[
 				{
@@ -426,7 +465,6 @@ class MultiTrafficPredictor:
 					"service": runtime.selection.service,
 					"profile_name": runtime.selection.profile_name,
 					"checkpoint_path": runtime.checkpoint_path,
-					"profile_values": runtime.profile_values,
 				}
 				for runtime in runtimes
 			],

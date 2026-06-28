@@ -29,8 +29,8 @@ def _assign_input_colors(labels: List[str]) -> Dict[str, Any]:
 	return {label: cmap(idx % cmap.N) for idx, label in enumerate(labels)}
 
 
-def _legend_text(label: str, service: str, profile_name: str, profile_values: Any) -> str:
-	return f"{label} ({service.upper()}, {profile_name}, {list(profile_values) if profile_values is not None else 'n/a'})"
+def _legend_text(label: str, service: str) -> str:
+	return f"{service.upper()} ({label})"
 
 
 def _collect_traffic_points(result: "MultiTrafficPredictionResult", labels: List[str]) -> Dict[str, Dict[str, List[float]]]:
@@ -81,10 +81,12 @@ def _save_combined_figure(
 	traffic_points: Dict[str, Dict[str, List[float]]],
 	series: Dict[str, Dict[str, List[float]]],
 	beta_threshold: float,
+	total_allocated: List[float],
+	capacity: float,
 ) -> Path:
-	"""Save one figure with traffic / allocated RB / beta side by side, all inputs overlaid."""
-	fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-	traffic_ax, alloc_ax, beta_ax = axes
+	"""Save one complete figure: traffic / allocated RB / total RB vs capacity / beta, all inputs overlaid."""
+	fig, axes = plt.subplots(1, 4, figsize=(24, 5))
+	traffic_ax, alloc_ax, total_ax, beta_ax = axes
 
 	for label in labels:
 		color = colors[label]
@@ -106,6 +108,13 @@ def _save_combined_figure(
 	alloc_ax.set_ylabel("Allocated RB")
 	alloc_ax.legend(fontsize="small")
 
+	total_ax.plot(dti_indices, total_allocated, color="tab:blue", marker="o", markersize=3, label="Total Allocated RB")
+	total_ax.axhline(capacity, color="black", linestyle="--", linewidth=1, label="Capacity")
+	total_ax.set_title(f"Total Allocated RB vs Capacity (capacity={capacity:.0f})")
+	total_ax.set_xlabel("DTI Index")
+	total_ax.set_ylabel("Total Allocated RB")
+	total_ax.legend(fontsize="small")
+
 	beta_ax.axhline(beta_threshold, color="black", linestyle="--", linewidth=1, label="beta_threshold")
 	beta_ax.set_title("Final Beta per DTI")
 	beta_ax.set_xlabel("DTI Index")
@@ -115,7 +124,7 @@ def _save_combined_figure(
 	fig.suptitle(f"Multi-Traffic Inputs — Allocation & Beta (beta_threshold={beta_threshold:.4f})")
 	fig.tight_layout()
 
-	out_path = output_dir / "multi_traffic_inputs_alloc_beta.png"
+	out_path = output_dir / "multi_traffic_complete_summary.png"
 	fig.savefig(out_path)
 	plt.close(fig)
 	return out_path
@@ -153,13 +162,8 @@ def save_multi_traffic_plots(result: "MultiTrafficPredictionResult") -> List[Pat
 	first_step = result.steps[0]
 	labels = [input_log.input_label for input_log in first_step.inputs]
 	services = {input_log.input_label: input_log.service for input_log in first_step.inputs}
-	profiles = {input_log.input_label: input_log.profile_name for input_log in first_step.inputs}
-	profile_values_by_label = {entry["label"]: entry.get("profile_values") for entry in result.inputs}
 	colors = _assign_input_colors(labels)
-	legend_text_by_label = {
-		label: _legend_text(label, services[label], profiles[label], profile_values_by_label.get(label))
-		for label in labels
-	}
+	legend_text_by_label = {label: _legend_text(label, services[label]) for label in labels}
 
 	dti_indices = [int(step.dti_index) for step in result.steps]
 	beta_threshold = _safe_float(first_step.beta_threshold)
@@ -171,7 +175,8 @@ def save_multi_traffic_plots(result: "MultiTrafficPredictionResult") -> List[Pat
 
 	plot_paths: List[Path] = [
 		_save_combined_figure(
-			output_dir, dti_indices, labels, legend_text_by_label, colors, traffic_points, series, beta_threshold
+			output_dir, dti_indices, labels, legend_text_by_label, colors, traffic_points, series,
+			beta_threshold, total_allocated, capacity,
 		),
 		_save_total_rb_figure(output_dir, dti_indices, total_allocated, capacity),
 	]

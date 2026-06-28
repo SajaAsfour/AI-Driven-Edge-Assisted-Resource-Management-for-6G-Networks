@@ -29,134 +29,38 @@ def configure_logger(log_path: Path) -> logging.Logger:
 	return logger
 
 
-def _prompt_choice(prompt: str, options: list[str]) -> str:
-	while True:
-		print(prompt)
-		for idx, option in enumerate(options, start=1):
-			print(f"  {idx}. {option}")
-		choice = input(f"Select 1-{len(options)}: ").strip()
-		if choice.isdigit():
-			idx = int(choice)
-			if 1 <= idx <= len(options):
-				return options[idx - 1]
-		print("Invalid selection. Please try again.")
-
-
-def _prompt_profile(prompt_label: str) -> str:
-	from WCSAC_RL_Model.traffic_profiles import get_default_profiles
-
-	profiles = list(get_default_profiles().keys())
-	return _prompt_choice(prompt_label, profiles)
-
-
-def _prompt_int(prompt: str, minimum: int) -> int:
-	while True:
-		raw = input(prompt).strip()
-		if raw.isdigit():
-			value = int(raw)
-			if value >= minimum:
-				return value
-		print(f"Invalid selection. Please enter an integer >= {minimum}.")
-
-
-def _get_default_beta_threshold() -> float:
-	try:
-		from WCSAC_RL_Model.config import get_default_config
-
-		cfg = get_default_config()
-		beta_threshold_value = getattr(cfg.agent, "beta_threshold", None)
-		return float(0.1 if beta_threshold_value is None else beta_threshold_value)
-	except Exception:
-		return 0.1
-
-
-MAX_TRAFFIC_INPUTS = 8
-
-
 def main() -> None:
-	from multi_slice.multi_traffic_config import AVAILABLE_SERVICES, MIN_TRAFFIC_INPUTS, MultiTrafficPredictionConfig, TrafficInputSelection
+	from multi_slice.multi_traffic_config import MultiTrafficPredictionConfig
 	from multi_slice.multi_traffic_predictor import MultiTrafficPredictor
 
-	while True:
-		print("====================================")
-		print("Enter your choice (1-2):")
-		print("  1. WCSAC")
-		print("  2. Exit")
-		print("====================================")
+	output_dir = MULTI_SLICE_ROOT / "multi_traffic"
+	config = MultiTrafficPredictionConfig(output_dir=output_dir)
+	model_label = (config.model_name or "wcsac").upper()
+	log_path = output_dir / f"{config.model_name or 'wcsac'}_multi_traffic_prediction.log"
+	logger = configure_logger(log_path)
 
-		model_choice = input("Select 1-2: ").strip()
-		if model_choice == "1":
-			model_name = "wcsac"
-			model_label = "WCSAC"
-		elif model_choice == "2":
-			print("Exiting.")
-			return
-		else:
-			print("Invalid selection. Please try again.")
-			continue
+	runner = MultiTrafficPredictor(config=config, logger=logger)
+	print(f"Starting multi-traffic prediction mode for {model_label}")
+	print(f"Beta threshold: {runner.config.beta_threshold}")
+	result = runner.run()
 
-		num_inputs = _prompt_int(
-			f"How many traffic inputs do you want to use? ({MIN_TRAFFIC_INPUTS}-{MAX_TRAFFIC_INPUTS}): ",
-			minimum=MIN_TRAFFIC_INPUTS,
-		)
-		if num_inputs > MAX_TRAFFIC_INPUTS:
-			print(f"Invalid selection. Maximum is {MAX_TRAFFIC_INPUTS} because capacity = 8.")
-			continue
-
-		inputs: list[TrafficInputSelection] = []
-		for i in range(1, num_inputs + 1):
-			service = _prompt_choice(f"Select service for input {i}", list(AVAILABLE_SERVICES))
-			profile = _prompt_profile(f"Select profile for input {i}")
-			inputs.append(TrafficInputSelection(service=service, profile_name=profile, label=f"input_{i}"))
-
-		print("\nSelected inputs:")
-		for selection in inputs:
-			print(f"  {selection.label}: service={selection.service}, profile={selection.profile_name}")
-		print()
-
-		output_dir = MULTI_SLICE_ROOT / "multi_traffic"
-		log_path = output_dir / f"{model_name}_multi_traffic_prediction.log"
-		logger = configure_logger(log_path)
-		beta_threshold = _get_default_beta_threshold()
-
-		config = MultiTrafficPredictionConfig(
-			inputs=inputs,
-			model_name=model_name,
-			capacity=8,
-			beta_threshold=beta_threshold,
-			seed=42,
-			output_dir=output_dir,
-		)
-
-		try:
-			print(f"Starting multi-traffic prediction mode for {model_label}")
-			for selection in inputs:
-				print(f"{selection.label}: service={selection.service}, profile={selection.profile_name}")
-			print(f"Beta threshold: {beta_threshold}")
-
-			runner = MultiTrafficPredictor(config=config, logger=logger)
-			result = runner.run()
-		except FileNotFoundError as exc:
-			print(f"ERROR: {exc}")
-			continue
-		except Exception as exc:
-			print(f"ERROR: Multi-traffic prediction failed: {exc}")
-			continue
-
-		print("Finished multi-traffic prediction")
-		print(f"Number of DTIs: {config.num_dtis}")
-		print(f"Beta threshold: {config.beta_threshold}")
-		print(f"Capacity: {config.capacity}")
-		print(f"JSON output: {result.output_path}")
-		print("Plot images:")
-		for plot_path in result.plot_paths:
-			print(f"  {plot_path}")
-		if result.steps:
-			last_step = result.steps[-1]
-			print("Last allocated RBs:")
-			for input_log in last_step.inputs:
-				print(f"  {input_log.input_label} = {input_log.allocated_rb}")
-		print("\nMulti-traffic prediction completed.\n")
+	print("Finished multi-traffic prediction")
+	print(f"Number of inputs: {result.config['num_inputs']}")
+	print(f"Service names: {result.config['service_names']}")
+	print(f"Number of DTIs: {result.config['num_dtis']}")
+	print(f"Number of TTIs per DTI: {result.config['num_ttis_per_dti']}")
+	print(f"Beta threshold: {result.config['beta_threshold']}")
+	print(f"Capacity: {result.config['capacity']}")
+	print(f"JSON output: {result.output_path}")
+	print("Plot images:")
+	for plot_path in result.plot_paths:
+		print(f"  {plot_path}")
+	if result.steps:
+		last_step = result.steps[-1]
+		print("Last allocated RBs:")
+		for input_log in last_step.inputs:
+			print(f"  {input_log.input_label} = {input_log.allocated_rb}")
+	print("\nMulti-traffic prediction completed.\n")
 
 
 if __name__ == "__main__":
