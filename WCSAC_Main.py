@@ -157,21 +157,27 @@ def save_prediction_beta_plot(
 
 
 def setup_logging(log_file: str = "debug.log"):
-    """
-    Configure logging to write to file only (no console output for results).
-    """
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file, mode='w', encoding='utf-8')
-        ]
-    )
-    
-    return logging.getLogger(__name__)
+	"""Configure logging to write to a file.
+
+	Adds a file handler to the root logger without removing any handlers that
+	were already registered (e.g. by trainer.py's isolated per-logger setup).
+	Previously this called logging.root.removeHandler() for every existing
+	handler, which silently disabled all other loggers' console/file output.
+	"""
+	file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
+	file_handler.setLevel(logging.INFO)
+	file_handler.setFormatter(
+		logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+	)
+
+	root = logging.getLogger()
+	# Only set the root level if it is currently more restrictive than INFO,
+	# so we don't accidentally suppress other loggers that are already running.
+	if root.level == logging.NOTSET or root.level > logging.INFO:
+		root.setLevel(logging.INFO)
+	root.addHandler(file_handler)
+
+	return logging.getLogger(__name__)
 
 
 # DATA LOADING FUNCTIONS
@@ -262,7 +268,7 @@ def validate_resource_blocks(mat: Any, m: int) -> List[List[int]]:
             raise ValueError(f"resource_blocks_per_dti[{dti}] must have at least 2 values")
 
         rb_row: List[int] = []
-        for svc_name, val in zip(["VoIP", "CBR"], row):
+        for svc_name, val in zip(["VoIP", "CBR"], row[:2]):
             if not isinstance(val, int):
                 raise ValueError(f"resource_blocks_per_dti[{dti}] {svc_name} must be int")
             if val < 0:
@@ -288,7 +294,7 @@ def compute_rb_per_tti_from_dti(resource_blocks_per_dti: List[List[int]],
     
     return {
         'voip': voip_rb_tti,
-        'cbr': cbr_rb_tti,
+        'cbr': cbr_rb_tti
     }
 
 
@@ -300,9 +306,6 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
     ]
     CBR_METRICS = [
         "cbrReceivedThroughput",
-    ]
-    STREAMING_METRICS = [
-        "rtVideoStreamingSegmentLoss",
     ]
     
     config_data = json.loads(config_path.read_text(encoding="utf-8"))
@@ -325,11 +328,9 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
     q_thresholds = require_dict("q_thresholds", config_data.get("q_thresholds"))
     voip_raw = require_dict("q_thresholds.voip", q_thresholds.get("voip"))
     cbr_raw = require_dict("q_thresholds.cbr", q_thresholds.get("cbr"))
-    streaming_raw = require_dict("q_thresholds.streaming", q_thresholds.get("streaming"))
 
     q_voip = validate_thresholds("voip", voip_raw, VOIP_METRICS)
     q_cbr = validate_thresholds("cbr", cbr_raw, CBR_METRICS)
-    q_streaming = validate_thresholds("streaming", streaming_raw, STREAMING_METRICS)
     
     resource_blocks_per_dti = validate_resource_blocks(
         input_data.get("resource_blocks_per_dti"), m
@@ -346,7 +347,6 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
         'traffic_elements': traffic_elements,
         'q_thresholds_voip': q_voip,
         'q_thresholds_cbr': q_cbr,
-        'q_thresholds_streaming': q_streaming,
         'resource_blocks_per_dti': resource_blocks_per_dti,
         'resource_blocks_per_tti': rb_per_tti,
         'traffic_users_per_tti': {
@@ -674,8 +674,7 @@ def run_networkmodel(config: Dict[str, Any], config_dir: Path, logger: logging.L
         k=config['k'],
         traffic_elements=config['traffic_elements'],
         q_thresholds_voip=config['q_thresholds_voip'],
-        q_thresholds_cbr=config['q_thresholds_cbr'],
-        q_thresholds_streaming=config['q_thresholds_streaming']
+        q_thresholds_cbr=config['q_thresholds_cbr']
     )
 
     service_files = {
@@ -1191,8 +1190,7 @@ def predict_resource_blocks_from_input(
                     k=network_config['k'],
                     traffic_elements=network_config['traffic_elements'],
                     q_thresholds_voip=network_config['q_thresholds_voip'],
-                    q_thresholds_cbr=network_config['q_thresholds_cbr'],
-                    q_thresholds_streaming=network_config['q_thresholds_streaming']
+                    q_thresholds_cbr=network_config['q_thresholds_cbr']
                 )
                 config_dir = BASE_DIR / "Network_Model" / "data" / "configuration"
                 service_files = {
@@ -1322,8 +1320,7 @@ def _build_network_model_from_config(network_config: Dict[str, Any]) -> NetworkM
         k=network_config['k'],
         traffic_elements=network_config['traffic_elements'],
         q_thresholds_voip=network_config['q_thresholds_voip'],
-        q_thresholds_cbr=network_config['q_thresholds_cbr'],
-        q_thresholds_streaming=network_config['q_thresholds_streaming']
+        q_thresholds_cbr=network_config['q_thresholds_cbr']
     )
 
 

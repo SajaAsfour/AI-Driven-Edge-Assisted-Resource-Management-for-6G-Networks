@@ -518,14 +518,40 @@ def train_wcsac(
 		"alpha_loss": [],
 		"entropy": [],
 		"evaluation_rewards": [],
+		# Per-checkpoint evaluation beta and RB — one entry per evaluation interval
+		"evaluation_mean_beta": [],   # (training_episode, mean_beta) tuples
+		"evaluation_mean_rb": [],     # (training_episode, mean_rb) tuples
 		"training_episode_dti_series": [],
 		"latest_evaluation_episode_dti_series": [],
+		# Per-episode beta and RB summaries for threshold behaviour plots
+		"episode_mean_beta": [],
+		"episode_mean_rb": [],
+		"episode_lambda": [],
+		"beta_threshold": [],
 	}
 	history["service"] = service
 	saved_checkpoints: list[str] = []
 	latest_evaluation_episode_dti_series: list[Dict[str, Any]] = []
 
 	total_steps = 0
+
+	# Resolve beta_threshold once here so the console header and final summary
+	# can reference it before the per-step assignment inside the training loop.
+	beta_threshold = float(getattr(config.agent, "beta_threshold", 0.3))
+
+	# ── Console table header ──────────────────────────────────────────────────
+	_CONSOLE_HEADER = (
+		f"{'Episode':>8} | {'Mean Beta':>10} | {'Threshold':>10} | "
+		f"{'Mean RB':>8} | {'Reward':>8} | {'Lambda':>8} | "
+		f"{'Alpha':>7} | {'Actor Loss':>11} | {'Status':>12}"
+	)
+	_CONSOLE_SEP = "-" * len(_CONSOLE_HEADER)
+	print()
+	print(f"  Service: {service.upper()}  |  Episodes: {max_episodes}  |  "
+		  f"Beta threshold: {beta_threshold:.2f}  |  Warmup: {warmup_steps} steps")
+	print(_CONSOLE_SEP)
+	print(_CONSOLE_HEADER)
+	print(_CONSOLE_SEP)
 
 	for episode in range(1, max_episodes + 1):
 		state = env.reset()
@@ -688,6 +714,19 @@ def train_wcsac(
 		mean_entropy = _nanmean_or_nan(episode_entropy_values)
 
 		history["episode_rewards"].append(float(episode_reward))
+
+		# Per-episode beta and RB means (computed from DTI-level lists)
+		_hist_beta_vals = [v for v in episode_beta_values if v is not None]
+		_hist_rb_vals   = [v for v in episode_rb_used_values if v is not None]
+		history["episode_mean_beta"].append(
+			float(np.nanmean(_hist_beta_vals)) if _hist_beta_vals else float("nan")
+		)
+		history["episode_mean_rb"].append(
+			float(np.nanmean(_hist_rb_vals)) if _hist_rb_vals else float("nan")
+		)
+		history["episode_lambda"].append(float(getattr(agent, "lambda_cost", float("nan"))))
+		history["beta_threshold"].append(beta_threshold)
+
 		history["actor_loss"].append(mean_actor_loss)
 		history["critic1_loss"].append(mean_critic1_loss)
 		history["critic2_loss"].append(mean_critic2_loss)
@@ -721,6 +760,42 @@ def train_wcsac(
 				f"Risk Alpha: {mean_risk_alpha:6.4f}"
 			)
 
+		# ── Console row (every 10 episodes) ──────────────────────────────────
+		_ep_mean_beta = (
+			float(np.nanmean([v for v in episode_beta_values if v is not None]))
+			if any(v is not None for v in episode_beta_values) else float("nan")
+		)
+		_ep_mean_rb = (
+			float(np.nanmean([v for v in episode_rb_used_values if v is not None]))
+			if any(v is not None for v in episode_rb_used_values) else float("nan")
+		)
+		_lambda_now = float(getattr(agent, "lambda_cost", float("nan")))
+		if not np.isfinite(_ep_mean_beta):
+			_status = "     no data"
+		elif _ep_mean_beta < beta_threshold - 0.05:
+			_status = "below target"
+		elif _ep_mean_beta > beta_threshold + 0.05:
+			_status = "above target"
+		else:
+			_status = "\u2705 on target"
+		_actor_str = (
+			f"{mean_actor_loss:11.4f}" if np.isfinite(mean_actor_loss) else "    (warmup)"
+		)
+		if episode == 1 or episode % 10 == 0:
+			print(
+				f"{episode:>8} | "
+				f"{_ep_mean_beta:>10.4f} | "
+				f"{beta_threshold:>10.4f} | "
+				f"{_ep_mean_rb:>8.2f} | "
+				f"{episode_reward:>8.3f} | "
+				f"{_lambda_now:>8.4f} | "
+				f"{mean_alpha:>7.4f} | "
+				f"{_actor_str} | "
+				f"{_status:>12}"
+			)
+		if episode % 100 == 0:
+			print(_CONSOLE_SEP)
+
 		if episode % evaluation_interval == 0:
 			eval_reward, eval_episode_series = _run_evaluation(
 				env=env,
@@ -737,6 +812,24 @@ def train_wcsac(
 			if hasattr(env, "set_logging_context"):
 				env.set_logging_context("training")
 			history["evaluation_rewards"].append((episode, eval_reward))
+
+			# Compute mean beta and RB across all DTI steps in this evaluation run
+			_eval_all_beta = [
+				v for ep_s in eval_episode_series
+				for v in ep_s.get("beta_values", []) if v is not None
+			]
+			_eval_all_rb = [
+				v for ep_s in eval_episode_series
+				for v in ep_s.get("rb_used_values", []) if v is not None
+			]
+			history["evaluation_mean_beta"].append((
+				episode,
+				float(np.mean(_eval_all_beta)) if _eval_all_beta else float("nan"),
+			))
+			history["evaluation_mean_rb"].append((
+				episode,
+				float(np.mean(_eval_all_rb)) if _eval_all_rb else float("nan"),
+			))
 			if verbose:
 				evaluation_logger.info(
 					f"Evaluation trigger at training episode {episode}: "
@@ -761,6 +854,21 @@ def train_wcsac(
 	if verbose:
 		training_logger.info(f"Training complete. Final checkpoint: {final_ckpt}")
 
+	# ── Console final summary ────────────────────────────────────────────────
+	print(_CONSOLE_SEP)
+	_final_mean_beta = (
+		float(np.nanmean([
+			v for series in history["training_episode_dti_series"][-50:]
+			for v in series.get("beta_values", []) if v is not None
+		])) if history["training_episode_dti_series"] else float("nan")
+	)
+	print(f"\n  Training complete.")
+	print(f"  Final alpha (fixed): {float(agent.alpha.item()):.4f}")
+	print(f"  Final lambda:        {float(getattr(agent, 'lambda_cost', float('nan'))):.4f}")
+	print(f"  Mean beta (last 50 episodes): {_final_mean_beta:.4f}  (threshold={beta_threshold:.2f})")
+	print(f"  Final checkpoint: {final_ckpt}")
+	print()
+
 	metrics_path = checkpoint_path / "training_metrics.json"
 	save_training_metrics(history, metrics_path)
 
@@ -783,9 +891,9 @@ def train_wcsac(
 
 	try:
 		try:
-			from WCSAC_RL_Model.plot_metrics import plot_training_metrics
+			from WCSAC_RL_Model.plot_metrics import plot_training_metrics, plot_beta_threshold, plot_beta_per_dti, plot_evaluation_results
 		except ImportError:
-			from .plot_metrics import plot_training_metrics
+			from .plot_metrics import plot_training_metrics, plot_beta_threshold, plot_beta_per_dti, plot_evaluation_results
 
 		generated_plots = plot_training_metrics(
 			metrics=history,
@@ -793,6 +901,34 @@ def train_wcsac(
 			service=service,
 			show=False,
 		)
+
+		# Beta vs threshold — episode mean overview
+		beta_plots = plot_beta_threshold(
+			metrics=history,
+			output_dir=checkpoint_path,
+			service=service,
+			show=False,
+		)
+		generated_plots += beta_plots
+
+		# Beta per individual DTI step — the primary convergence plot
+		dti_plots = plot_beta_per_dti(
+			metrics=history,
+			output_dir=checkpoint_path,
+			service=service,
+			show=False,
+		)
+		generated_plots += dti_plots
+
+		# Evaluation plots — reward, beta vs threshold, RB allocation
+		eval_plots = plot_evaluation_results(
+			metrics=history,
+			output_dir=checkpoint_path,
+			service=service,
+			show=False,
+		)
+		generated_plots += eval_plots
+
 		if verbose:
 			training_logger.info(
 				f"Saved training metrics: {metrics_path} | "

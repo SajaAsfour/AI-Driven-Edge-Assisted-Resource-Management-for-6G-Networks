@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Dict, Optional, Union
 
@@ -162,10 +163,22 @@ class WCSACAgent:
 		self.cost_critic_optimizer = Adam(self.cost_critic.parameters(), lr=critic_lr)
 
 		# log_alpha is optimized directly to keep alpha positive via exp(log_alpha).
-		self.log_alpha = nn.Parameter(torch.tensor(0.0, device=self.device))
+		# Fixed-alpha mode: when target_entropy is None, alpha is held constant
+		# at FIXED_ALPHA_INIT instead of being auto-tuned. Previously this branch
+		# silently substituted -action_dim for None, which meant the alpha update
+		# loop ran unconditionally and None could never actually disable it.
+		FIXED_ALPHA_INIT = 0.3
+		init_log_alpha = math.log(FIXED_ALPHA_INIT) if target_entropy is None else 0.0
+		self.log_alpha = nn.Parameter(
+			torch.tensor(init_log_alpha, device=self.device),
+			requires_grad=(target_entropy is not None),
+		)
 		self.alpha_optimizer = Adam([self.log_alpha], lr=alpha_lr)
 
-		self.target_entropy = float(target_entropy) if target_entropy is not None else float(-action_dim)
+		# Keep target_entropy as the real sentinel None when alpha is fixed.
+		# self.update() must check `self.target_entropy is not None` before
+		# computing alpha_loss / stepping alpha_optimizer.
+		self.target_entropy = float(target_entropy) if target_entropy is not None else None
 
 		self.alpha = self.log_alpha.exp().detach()
 
@@ -173,13 +186,17 @@ class WCSACAgent:
 		self.lambda_cost = float(self.lambda_cost)
 
 	@staticmethod
-	def _beta_exceedance_cost(beta_current: float, beta_threshold: float) -> float:
-		"""Return the beta deviation cost used throughout WCSAC.
+	def _beta_deviation_cost(beta_current: float, beta_threshold: float) -> float:
+		"""Return the absolute beta deviation cost used throughout WCSAC.
 
-		A pure exceedance-only cost becomes zero for all beta values below the
-		threshold, which gives the constraint no preference between beta=0 and
-		beta close to the threshold. Using absolute deviation keeps the cost
-		non-zero away from the target band and avoids collapse to always-zero beta.
+		Returns abs(beta_current - beta_threshold), which is symmetric around
+		the threshold. This keeps the cost non-zero on both sides of the target,
+		giving the agent a gradient signal whether beta is too high or too low.
+
+		Note: this is NOT a one-sided exceedance cost. A pure exceedance cost
+		(max(0, beta - threshold)) would return zero for all beta below the
+		threshold, eliminating the preference between beta=0 and beta near the
+		threshold. Use this method (abs deviation) when that distinction matters.
 		"""
 		return abs(float(beta_current) - float(beta_threshold))
 
@@ -293,13 +310,19 @@ class WCSACAgent:
 		actor_weights = cvar_weights(min_q_new.detach(), self.risk_alpha)
 
 		# Compute upper-tail CVaR of cost under current policy (analytic Gaussian).
-		# CVaR_α = mean + std * φ(Φ⁻¹(α)) / α  — denominator must be α, not (1-α).
+		# We want the worst-case HIGH costs, so we need the upper-tail CVaR at
+		# level risk_alpha, which uses the (1 - risk_alpha) quantile of the
+		# standard normal:
+		#   CVaR_{1-α}^+ = mean + std * φ(Φ⁻¹(1-α)) / α
+		# Using Φ⁻¹(risk_alpha) (lower-tail) would give a negative z-score
+		# (e.g. -1.28 for α=0.1), which points toward low-cost outcomes —
+		# the opposite of what we want for a constraint on high costs.
 		cost_mean_pi, cost_log_var_pi = self.cost_critic(states, new_actions)
 		cost_std_pi = torch.exp(0.5 * cost_log_var_pi)
 		std_normal = Normal(torch.tensor(0.0, device=self.device), torch.tensor(1.0, device=self.device))
-		inv_phi = std_normal.icdf(torch.tensor(self.risk_alpha, device=self.device))
+		inv_phi = std_normal.icdf(torch.tensor(1.0 - self.risk_alpha, device=self.device))
 		pdf_at_inv = torch.exp(std_normal.log_prob(inv_phi))
-		kappa = (pdf_at_inv / float(self.risk_alpha)).clamp_min(0.0)  # FIXED: was (1 - risk_alpha)
+		kappa = (pdf_at_inv / float(self.risk_alpha)).clamp_min(0.0)
 		uncertainty_scale = 0.25
 		cvar_per_sample = cost_mean_pi + uncertainty_scale * kappa * cost_std_pi
 		cvar_cost = cvar_per_sample.mean()
@@ -320,15 +343,25 @@ class WCSACAgent:
 			torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
 		self.actor_optimizer.step()
 
-		alpha_loss = -(self.log_alpha * (log_prob + self.target_entropy).detach()).mean()
+		# Fixed-alpha mode: when target_entropy is None, alpha is held constant
+		# and the alpha optimizer is never stepped. Previously self.target_entropy
+		# always held a numeric fallback (-action_dim), so this update ran
+		# unconditionally regardless of what was passed in at construction time.
+		if self.target_entropy is not None:
+			alpha_loss = -(self.log_alpha * (log_prob + self.target_entropy).detach()).mean()
 
-		self.alpha_optimizer.zero_grad(set_to_none=True)
-		alpha_loss.backward()
-		if self.max_grad_norm is not None:
-			torch.nn.utils.clip_grad_norm_([self.log_alpha], self.max_grad_norm)
-		self.alpha_optimizer.step()
+			self.alpha_optimizer.zero_grad(set_to_none=True)
+			alpha_loss.backward()
+			if self.max_grad_norm is not None:
+				torch.nn.utils.clip_grad_norm_([self.log_alpha], self.max_grad_norm)
+			self.alpha_optimizer.step()
 
-		self.alpha = self.log_alpha.exp().detach()
+			self.alpha = self.log_alpha.exp().detach()
+			alpha_loss_value = float(alpha_loss.item())
+		else:
+			# Alpha fixed at its initial value (see __init__: FIXED_ALPHA_INIT).
+			# log_alpha has requires_grad=False, so there is nothing to step.
+			alpha_loss_value = 0.0
 
 		self.soft_update(self.target_critic1, self.critic1, self.tau)
 		self.soft_update(self.target_critic2, self.critic2, self.tau)
@@ -350,7 +383,7 @@ class WCSACAgent:
 			"critic1_loss": float(critic1_loss.item()),
 			"critic2_loss": float(critic2_loss.item()),
 			"actor_loss": float(actor_loss.item()),
-			"alpha_loss": float(alpha_loss.item()),
+			"alpha_loss": alpha_loss_value,
 			"alpha": float(self.alpha.item()),
 			"risk_alpha": float(self.risk_alpha),
 			"q1_mean": float(current_q1.mean().item()),
@@ -448,7 +481,10 @@ class WCSACAgent:
 		self.alpha = self.log_alpha.exp().detach()
 
 		if "target_entropy" in checkpoint:
-			self.target_entropy = float(checkpoint["target_entropy"])
+			loaded_target_entropy = checkpoint["target_entropy"]
+			self.target_entropy = (
+				float(loaded_target_entropy) if loaded_target_entropy is not None else None
+			)
 		if "risk_alpha" in checkpoint:
 			self.risk_alpha = float(checkpoint["risk_alpha"])
 		if "max_grad_norm" in checkpoint:

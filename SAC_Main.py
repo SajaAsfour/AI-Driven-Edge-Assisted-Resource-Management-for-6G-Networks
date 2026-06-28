@@ -402,7 +402,6 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
         'traffic_elements': traffic_elements,
         'q_thresholds_voip': q_voip,
         'q_thresholds_cbr': q_cbr,
-        'q_thresholds_streaming': q_streaming,
         'resource_blocks_per_dti': resource_blocks_per_dti,
         'resource_blocks_per_tti': rb_per_tti,
         'traffic_users_per_tti': {
@@ -751,7 +750,6 @@ def run_networkmodel(config: Dict[str, Any], config_dir: Path, logger: logging.L
         traffic_elements=config['traffic_elements'],
         q_thresholds_voip=config['q_thresholds_voip'],
         q_thresholds_cbr=config['q_thresholds_cbr'],
-        q_thresholds_streaming=config['q_thresholds_streaming']
     )
 
     service_files = {
@@ -1325,7 +1323,6 @@ def predict_resource_blocks_from_input(
                         traffic_elements=network_config['traffic_elements'],
                         q_thresholds_voip=network_config['q_thresholds_voip'],
                         q_thresholds_cbr=network_config['q_thresholds_cbr'],
-                        q_thresholds_streaming=network_config['q_thresholds_streaming']
                     )
                     
                     # Load metric matrices for the service

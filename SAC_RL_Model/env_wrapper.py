@@ -139,7 +139,6 @@ class NetworkSACEnv:
 			traffic_elements=self.config["traffic_elements"],
 			q_thresholds_voip=self.config["q_thresholds_voip"],
 			q_thresholds_cbr=self.config["q_thresholds_cbr"],
-			q_thresholds_streaming=self.config["q_thresholds_streaming"],
 		)
 
 		metric_path = (
