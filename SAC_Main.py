@@ -356,9 +356,6 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
     CBR_METRICS = [
         "cbrReceivedThroughput",
     ]
-    STREAMING_METRICS = [
-        "rtVideoStreamingSegmentLoss",
-    ]
     
     config_data = json.loads(config_path.read_text(encoding="utf-8"))
     input_data = json.loads(input_path.read_text(encoding="utf-8"))
@@ -381,11 +378,9 @@ def load_configuration(config_path: Path, input_path: Path) -> Dict[str, Any]:
     q_thresholds = require_dict("q_thresholds", config_data.get("q_thresholds"))
     voip_raw = require_dict("q_thresholds.voip", q_thresholds.get("voip"))
     cbr_raw = require_dict("q_thresholds.cbr", q_thresholds.get("cbr"))
-    streaming_raw = require_dict("q_thresholds.streaming", q_thresholds.get("streaming"))
 
     q_voip = validate_thresholds("voip", voip_raw, VOIP_METRICS)
     q_cbr = validate_thresholds("cbr", cbr_raw, CBR_METRICS)
-    q_streaming = validate_thresholds("streaming", streaming_raw, STREAMING_METRICS)
     
     resource_blocks_per_dti = validate_resource_blocks(
         input_data.get("resource_blocks_per_dti"), m
