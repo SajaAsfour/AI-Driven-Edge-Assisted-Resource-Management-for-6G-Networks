@@ -4,7 +4,7 @@ import json
 import logging
 import random
 import sys
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
@@ -23,6 +23,7 @@ from multi_slice.multi_traffic_config import (
 	normalize_service_name,
 	resolve_final_checkpoint_path,
 )
+from multi_slice.multi_traffic_plots import save_multi_traffic_plots
 
 if TYPE_CHECKING:
 	from WCSAC_RL_Model.env_wrapper import NetworkWCSACEnv
@@ -212,6 +213,7 @@ class MultiTrafficPredictionResult:
 	steps: List[TrafficStepLog]
 	output_path: Path
 	log_path: Path
+	plot_paths: List[Path] = field(default_factory=list)
 
 	def to_dict(self) -> Dict[str, Any]:
 		return _json_safe(asdict(self))
@@ -263,7 +265,11 @@ class MultiTrafficPredictor:
 		agent.load(checkpoint_path)
 
 		rng = random.Random(self.config.seed + seed_offset)
-		traffic_matrix = build_traffic_matrix_from_profile(profile_values=profile_values, m=env.m, n=env.n, rng=rng)
+		# num_dtis controls how many DTI rows are generated here; it is independent of
+		# env.m (the WCSAC network config's own DTI count) and is never used for env.m or capacity.
+		traffic_matrix = build_traffic_matrix_from_profile(
+			profile_values=profile_values, m=self.config.num_dtis, n=env.n, rng=rng
+		)
 
 		return TrafficInputRuntime(
 			selection=TrafficInputSelection(service=service, profile_name=profile_name, label=label),
@@ -294,10 +300,11 @@ class MultiTrafficPredictor:
 			runtimes.append(runtime)
 			sweep_envs.append(self._build_sweep_env(runtime, seed_offset=1000 + idx))
 
-		base_m, base_n = runtimes[0].env.m, runtimes[0].env.n
+		base_n = runtimes[0].env.n
 		for runtime in runtimes[1:]:
-			if runtime.env.m != base_m or runtime.env.n != base_n:
-				raise ValueError("All inputs must share the same network dimensions (n and m)")
+			if runtime.env.n != base_n:
+				raise ValueError("All inputs must share the same number of TTIs per DTI (n)")
+		num_dtis = int(self.config.num_dtis)
 
 		for runtime in runtimes:
 			runtime.env.model.reset(runtime.env.service)
@@ -313,10 +320,11 @@ class MultiTrafficPredictor:
 			self.logger.info("Checkpoint %s: %s", runtime.selection.label, runtime.checkpoint_path)
 		self.logger.info("Global RB capacity: %s", self.config.capacity)
 		self.logger.info("Beta threshold: %.6f", self.config.beta_threshold)
+		self.logger.info("Number of DTIs: %s", num_dtis)
 
 		step_logs: List[TrafficStepLog] = []
 
-		for dti_index in range(base_m):
+		for dti_index in range(num_dtis):
 			display_dti = dti_index + 1
 			traffics = [runtime.traffic_matrix[dti_index] for runtime in runtimes]
 
@@ -410,6 +418,7 @@ class MultiTrafficPredictor:
 				"beta_threshold": self.config.beta_threshold,
 				"seed": self.config.seed,
 				"model_name": self.config.model_name or "wcsac",
+				"num_dtis": num_dtis,
 			},
 			inputs=[
 				{
@@ -426,5 +435,6 @@ class MultiTrafficPredictor:
 			log_path=self.output_dir / "wcsac_multi_traffic_prediction.log",
 		)
 
+		result.plot_paths = save_multi_traffic_plots(result)
 		result.output_path.write_text(json.dumps(_json_safe(result.to_dict()), indent=2), encoding="utf-8")
 		return result

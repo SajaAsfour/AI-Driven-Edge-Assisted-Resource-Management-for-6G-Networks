@@ -144,6 +144,13 @@ def main() -> None:
 			continue
 
 		print("Finished multi-traffic prediction")
+		print(f"Number of DTIs: {config.num_dtis}")
+		print(f"Beta threshold: {config.beta_threshold}")
+		print(f"Capacity: {config.capacity}")
+		print(f"JSON output: {result.output_path}")
+		print("Plot images:")
+		for plot_path in result.plot_paths:
+			print(f"  {plot_path}")
 		if result.steps:
 			last_step = result.steps[-1]
 			print("Last allocated RBs:")

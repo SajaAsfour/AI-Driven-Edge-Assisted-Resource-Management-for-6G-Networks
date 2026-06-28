@@ -79,6 +79,9 @@ class MultiTrafficPredictionConfig:
 	capacity: int = 8
 	beta_threshold: float = 0.1
 	seed: int = 42
+	# Number of DTI steps to generate/process in multi-traffic mode. This is independent
+	# from `n` (TTIs per DTI, set by the WCSAC network config) and from `capacity` (RB budget).
+	num_dtis: int = 8
 	output_dir: Path = field(default_factory=lambda: WORKSPACE_ROOT / "WCSAC_RL_Model" / "checkpoints" / "multi_traffic")
 	checkpoint_base_dir: Optional[Path] = None
 
@@ -87,6 +90,8 @@ class MultiTrafficPredictionConfig:
 			raise ValueError(
 				f"At least {MIN_TRAFFIC_INPUTS} traffic inputs are required, got {len(self.inputs)}"
 			)
+		if int(self.num_dtis) <= 0:
+			raise ValueError(f"num_dtis must be > 0, got {self.num_dtis}")
 		model_key = normalize_model_name(self.model_name)
 		base_dir = Path(self.checkpoint_base_dir).expanduser() if self.checkpoint_base_dir is not None else resolve_default_checkpoint_base_dir(model_key)
 		if not base_dir.is_absolute():
@@ -97,6 +102,7 @@ class MultiTrafficPredictionConfig:
 			capacity=int(self.capacity),
 			beta_threshold=float(self.beta_threshold),
 			seed=int(self.seed),
+			num_dtis=int(self.num_dtis),
 			output_dir=Path(self.output_dir).expanduser(),
 			checkpoint_base_dir=base_dir,
 		)
