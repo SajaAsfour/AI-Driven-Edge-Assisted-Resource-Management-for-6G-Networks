@@ -1597,22 +1597,76 @@ def run_wcsac_custom_inference_mode() -> None:
             # Right plot: Beta values
             beta_x_vals = list(range(1, len(svc_beta_values) + 1))
             has_valid_beta = svc_beta_values and not all(np.isnan(v) for v in svc_beta_values)
-            
+            threshold_label = f"Beta Threshold = {beta_threshold:.2f}"
+
             if has_valid_beta:
-                ax_right.plot(beta_x_vals, svc_beta_values, marker="o", linewidth=1.5, label=svc.capitalize(), color="steelblue")
+                ax_right.plot(
+                    beta_x_vals,
+                    svc_beta_values,
+                    marker="o",
+                    linewidth=1.5,
+                    label=svc.capitalize(),
+                    color="steelblue"
+                )
+
+                ax_right.axhline(
+                    beta_threshold,
+                    color="crimson",
+                    linestyle="--",
+                    linewidth=1.5,
+                )
+
                 ax_right.set_title(f"Beta Current per DTI - {svc.capitalize()}")
                 ax_right.set_xlabel("Number of DTI")
                 ax_right.set_ylabel("beta_current")
                 ax_right.set_xticks(range(1, 9))
                 ax_right.set_xlim(1, 8)
+                ax_right.set_ylim(0, max(1.0, beta_threshold + 0.1))
                 ax_right.grid(True)
                 ax_right.legend()
+
             else:
-                ax_right.text(0.5, 0.5, "No valid beta data", 
-                             ha="center", va="center", transform=ax_right.transAxes, fontsize=12)
+                ax_right.text(
+                    0.5,
+                    0.5,
+                    "No valid beta data",
+                    ha="center",
+                    va="center",
+                    transform=ax_right.transAxes,
+                    fontsize=12
+                )
+
+                ax_right.axhline(
+                    beta_threshold,
+                    color="crimson",
+                    linestyle="--",
+                    linewidth=1.5,
+                )
+
                 ax_right.set_title(f"Beta Current per DTI - {svc.capitalize()}")
                 ax_right.set_xlabel("Number of DTI")
                 ax_right.set_ylabel("beta_current")
+                ax_right.set_xticks(range(1, 9))
+                ax_right.set_xlim(1, 8)
+                ax_right.set_ylim(0, max(1.0, beta_threshold + 0.1))
+                ax_right.grid(True)
+                ax_right.legend()
+
+            ax_right.text(
+                0.02,
+                0.92,
+                f"Threshold = {beta_threshold:.2f}",
+                transform=ax_right.transAxes,
+                fontsize=8,
+                verticalalignment="top",
+                horizontalalignment="left",
+                bbox=dict(
+                    boxstyle="round",
+                    facecolor="white",
+                    edgecolor="crimson",
+                    alpha=0.8
+                )
+            )
             
             # Add service and model label to right plot
             ax_right.text(
